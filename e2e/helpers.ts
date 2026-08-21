@@ -163,3 +163,17 @@ export async function seedSubmissions(
     });
   }
 }
+
+/**
+ * A polling assertion on the fragment.
+ *
+ * A freshly mounted Monaco paints in stages, so a single read can catch a
+ * half-rendered line — one read of a prefilled editor returned just "f" of
+ * "for n in numbers". Every assertion about editor content polls until it
+ * settles.
+ *
+ *   await expectFragment(page).toContain('for n in numbers');
+ */
+export function expectFragment(page: Page, message = 'editor content should settle') {
+  return expect.poll(async () => (await readFragment(page)).trim(), { timeout: 15_000, message });
+}

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
-  ACCOUNTS, feedback, openQuestion, openTab, providedCode, readFragment, run, score,
+  ACCOUNTS, expectFragment, feedback, openQuestion, openTab, providedCode, run, score,
   signIn, signOut, submit, typeFragment, verdict,
 } from './helpers';
 
@@ -270,8 +270,7 @@ test.describe('the core practice loop', () => {
     await openQuestion(page, 'PY-BASICS-0001');
     await typeFragment(page, 'name = "Nonsense"');
     await page.getByRole('button', { name: /Reset/ }).click();
-    await page.waitForTimeout(500);
-    expect((await readFragment(page)).trim()).toBe('');
+    await expectFragment(page, 'Reset should empty the editor').toBe('');
   });
 
   test('moves to the next unsolved question in the topic', async ({ page }) => {
@@ -398,7 +397,7 @@ test.describe('other languages and question types', () => {
 
   test('FIX_SYNTAX: the broken line is prefilled for repair', async ({ page }) => {
     await openQuestion(page, 'PY-LOOPS-0016');
-    expect(await readFragment(page)).toContain('for n in numbers');
+    await expectFragment(page, 'the broken line should be prefilled').toContain('for n in numbers');
 
     await typeFragment(page, 'for n in numbers:');
     await submit(page);

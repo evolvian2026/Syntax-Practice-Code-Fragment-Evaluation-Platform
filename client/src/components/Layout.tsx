@@ -38,7 +38,7 @@ export function Layout({ theme, onToggleTheme }: Props) {
             <span className="hidden sm:inline">Syntax Practice</span>
           </Link>
 
-          <nav className="ml-4 hidden items-center gap-1 md:flex">
+          <nav className="ml-4 hidden items-center gap-1 lg:flex">
             {links.map((link) => (
               <NavLink
                 key={link.to}
@@ -72,7 +72,7 @@ export function Layout({ theme, onToggleTheme }: Props) {
 
           <div className="ml-auto flex items-center gap-2">
             {profile && (
-              <div className="hidden items-center gap-3 text-xs text-slate-500 dark:text-slate-400 sm:flex">
+              <div className="hidden items-center gap-3 text-xs text-slate-500 dark:text-slate-400 xl:flex">
                 <span title="Experience points" className="font-mono">⚡ {profile.xp} XP</span>
                 <span title="Current streak" className="font-mono">🔥 {profile.streakCurrent}</span>
                 <span title="Level" className="rounded-full bg-slate-100 px-2 py-0.5 font-medium dark:bg-ink-850">
@@ -130,7 +130,7 @@ export function Layout({ theme, onToggleTheme }: Props) {
 
             <button
               type="button"
-              className="btn-ghost h-9 w-9 !px-0 md:hidden"
+              className="btn-ghost h-9 w-9 !px-0 lg:hidden"
               onClick={() => setNavOpen((o) => !o)}
               aria-label="Toggle navigation"
             >
@@ -140,7 +140,7 @@ export function Layout({ theme, onToggleTheme }: Props) {
         </div>
 
         {navOpen && (
-          <nav className="border-t border-slate-200 px-4 py-2 md:hidden dark:border-ink-800">
+          <nav className="border-t border-slate-200 px-4 py-2 lg:hidden dark:border-ink-800">
             {[...links, ...(isAdmin ? [{ to: '/admin', label: 'Admin' }] : [])].map((link) => (
               <NavLink
                 key={link.to}
