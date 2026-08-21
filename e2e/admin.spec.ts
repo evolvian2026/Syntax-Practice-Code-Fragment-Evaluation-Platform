@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
-  ACCOUNTS, openQuestion, seedSubmissions, signIn, signOut, submit, typeFragment, verdict,
+  ACCOUNTS, openQuestion, seedSubmissions, signIn, signInAsOther, signOut, submit, typeFragment, verdict,
 } from './helpers';
 
 /**
@@ -68,7 +68,7 @@ test.describe('question management', () => {
     await expect(page.getByText(/reference solution passes every test case/i)).toBeVisible({ timeout: 45_000 });
   });
 
-  test('authors a new question end to end and a student can then solve it', async ({ page, context }) => {
+  test('authors a new question end to end and a student can then solve it', async ({ page, browser }) => {
     const marker = Date.now();
     const title = `E2E squares ${marker}`;
 
@@ -126,8 +126,8 @@ test.describe('question management', () => {
     const qid = (await page.getByRole('heading', { name: /Edit / }).innerText()).replace('Edit ', '').trim();
 
     // --- a student can now practise it, with no code change anywhere
-    const studentPage = await context.newPage();
-    await signIn(studentPage, ACCOUNTS.student);
+    const student = await signInAsOther(browser, new URL(page.url()).origin, ACCOUNTS.student);
+    const studentPage = student.page;
     await openQuestion(studentPage, qid);
     await expect(studentPage.getByText(title)).toBeVisible();
     await expect(studentPage.getByText('numbers = [1, 2, 3]')).toBeVisible();
@@ -139,7 +139,7 @@ test.describe('question management', () => {
     await typeFragment(studentPage, 'for n in numbers:\n    print(n * n)');
     await submit(studentPage);
     expect(await verdict(studentPage)).toMatch(/Correct/i);
-    await studentPage.close();
+    await student.context.close();
   });
 
   test('duplicates a question as an editable draft', async ({ page }) => {
@@ -161,7 +161,8 @@ test.describe('question management', () => {
     await expect(page.getByText('{{STUDENT_CODE}} missing')).toBeVisible();
 
     await page.getByRole('button', { name: /Save question/ }).click();
-    await expect(page.getByText(/must contain the \{\{STUDENT_CODE\}\} marker/i)).toBeVisible();
+    // The message shows twice: once in the banner, once in the field list.
+    await expect(page.getByText(/must contain the \{\{STUDENT_CODE\}\} marker/i).first()).toBeVisible();
   });
 
   test('deletes a question', async ({ page }) => {
@@ -249,7 +250,7 @@ test.describe('import and export', () => {
 test.describe('assessments', () => {
   const title = `E2E assessment ${Date.now()}`;
 
-  test('an admin composes one and a student takes it', async ({ page, context }) => {
+  test('an admin composes one and a student takes it', async ({ page, browser }) => {
     await signIn(page, ACCOUNTS.admin);
     await page.goto('/admin/assessments');
     await page.getByRole('button', { name: /New assessment/ }).click();
@@ -267,8 +268,8 @@ test.describe('assessments', () => {
     await expect(page.getByText(title)).toBeVisible();
 
     // --- student takes it
-    const studentPage = await context.newPage();
-    await signIn(studentPage, ACCOUNTS.student);
+    const student = await signInAsOther(browser, new URL(page.url()).origin, ACCOUNTS.student);
+    const studentPage = student.page;
     await studentPage.goto('/assessments');
     await expect(studentPage.getByText(title)).toBeVisible();
 
@@ -290,7 +291,7 @@ test.describe('assessments', () => {
     await page.locator('tr', { hasText: title }).getByRole('button', { name: 'Results' }).click();
     await expect(page.getByRole('cell', { name: 'Sam Student' })).toBeVisible();
     await expect(page.getByText('submitted').first()).toBeVisible();
-    await studentPage.close();
+    await student.context.close();
   });
 });
 
@@ -327,14 +328,9 @@ test.describe('students and analytics', () => {
     await page.getByRole('button', { name: /^Add$/ }).click();
     await expect(page.getByText('Created By Admin')).toBeVisible();
 
-    // A second tab in the same context would still carry the admin's token and
-    // be redirected straight past /login, so the new account needs its own.
-    // A manually created context does not inherit baseURL from the config.
-    const fresh = await browser.newContext({ baseURL: new URL(page.url()).origin });
-    const newPage = await fresh.newPage();
-    await signIn(newPage, { email, password: 'created123' });
-    await expect(newPage.getByRole('link', { name: /Practice/ }).first()).toBeVisible();
-    await fresh.close();
+    const created = await signInAsOther(browser, new URL(page.url()).origin, { email, password: 'created123' });
+    await expect(created.page.getByRole('link', { name: /Practice/ }).first()).toBeVisible();
+    await created.context.close();
   });
 
   test('analytics rank questions, topics and errors', async ({ page }) => {

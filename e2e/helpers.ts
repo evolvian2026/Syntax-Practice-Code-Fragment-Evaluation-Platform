@@ -1,4 +1,4 @@
-import { expect, type Page, type Response } from '@playwright/test';
+import { expect, type Browser, type BrowserContext, type Page, type Response } from '@playwright/test';
 
 /** Shared page objects for the end-to-end suite. */
 
@@ -176,4 +176,23 @@ export async function seedSubmissions(
  */
 export function expectFragment(page: Page, message = 'editor content should settle') {
   return expect.poll(async () => (await readFragment(page)).trim(), { timeout: 15_000, message });
+}
+
+/**
+ * A page signed in as somebody else, in its own browser context.
+ *
+ * `context.newPage()` shares localStorage, so a second tab still carries the
+ * first user's token and gets redirected straight past /login. Being two
+ * people at once takes two contexts — and a manually created one does not
+ * inherit baseURL from the config, so it is passed in.
+ */
+export async function signInAsOther(
+  browser: Browser,
+  origin: string,
+  account: { email: string; password: string },
+): Promise<{ page: Page; context: BrowserContext }> {
+  const context = await browser.newContext({ baseURL: origin });
+  const page = await context.newPage();
+  await signIn(page, account);
+  return { page, context };
 }
