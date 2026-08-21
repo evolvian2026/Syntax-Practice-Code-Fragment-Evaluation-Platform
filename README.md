@@ -46,7 +46,7 @@ a toolchain is missing.
 ```bash
 npm run build     # production build (server + client)
 npm start         # serve API and the built UI from one process on :4000
-npm test          # 115 unit and integration tests
+npm test          # 116 unit and integration tests
 npm run test:e2e  # browser tests driving the real application
 npm run test:all  # both
 ```
