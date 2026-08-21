@@ -253,18 +253,41 @@ def parse(source, kind):
     return ast.parse(source, mode=mode)
 
 
+def with_synthetic_body(source):
+    """Puts a `pass` under a trailing block header, at its indent plus four."""
+    lines = [line for line in source.splitlines() if line.strip()]
+    last = lines[-1] if lines else ""
+    indent = len(last) - len(last.lstrip())
+    return source.rstrip() + "\n" + " " * (indent + 4) + "pass"
+
+
 def try_parse_any(source):
     """Prefer expression parsing (for fragment equivalence), fall back to module.
 
     When both fail, the *statement* error is the useful one to report -- a
     student writing `for n in numbers` wants "expected ':'", not "invalid
     syntax" from the expression attempt.
+
+    A fragment may also be a block *header* whose body lives in the template,
+    as in a fix-the-syntax question that asks only for the `for` line. On its
+    own that raises IndentationError, so it is retried with a synthetic body.
+    A header that is genuinely broken -- a missing colon, say -- raises plain
+    SyntaxError instead and is reported unchanged.
     """
     try:
         return parse(source, "eval"), "eval"
     except SyntaxError:
         pass
-    return parse(source, "exec"), "exec"
+    try:
+        return parse(source, "exec"), "exec"
+    except IndentationError as exc:
+        try:
+            tree = parse(with_synthetic_body(source), "exec")
+        except SyntaxError:
+            raise exc
+        # Flagged so the analyser can leave the stand-in body out of its report.
+        tree.synthetic_body = True
+        return tree, "exec"
 
 
 def analyze(source, kind="auto"):
@@ -274,6 +297,11 @@ def analyze(source, kind="auto"):
         tree, used = parse(source, kind), kind
     an = Analyzer()
     an.visit(tree)
+    if getattr(tree, "synthetic_body", False):
+        # The `pass` was ours, not the student's: it must not show up as a
+        # detected construct, nor satisfy or violate a construct rule.
+        an.constructs.discard("PASS")
+        an.node_types.pop("Pass", None)
     body = getattr(tree, "body", None)
     statements = len(body) if isinstance(body, list) else 1
     return {

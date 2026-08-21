@@ -101,6 +101,30 @@ describe('python static analysis', () => {
     expect(result.equivalent).toBe(true);
   });
 
+  it('accepts a block header whose body lives in the template', async () => {
+    // A fix-the-syntax question can ask for the `for` line alone; on its own
+    // that is an incomplete block, but it is a complete answer.
+    const analysis = await analyzePython('for n in numbers:');
+    expect(analysis.ok).toBe(true);
+    expect(analysis.constructs).toContain('FOR_LOOP');
+    // The stand-in body must not surface as something the student wrote.
+    expect(analysis.constructs).not.toContain('PASS');
+  });
+
+  it('still reports a header that is genuinely broken', async () => {
+    const noColon = await analyzePython('for n in numbers');
+    expect(noColon.ok).toBe(false);
+    expect(noColon.error.message).toMatch(/expected ':'/);
+
+    const badParams = await analyzePython('def add(a b)');
+    expect(badParams.ok).toBe(false);
+  });
+
+  it('still reports a pass the student actually wrote', async () => {
+    const analysis = await analyzePython('for n in numbers:\n    pass');
+    expect(analysis.constructs).toContain('PASS');
+  });
+
   it('reports a useful syntax error', async () => {
     const analysis = await analyzePython('for n in xs\n    print(n)');
     expect(analysis.ok).toBe(false);
