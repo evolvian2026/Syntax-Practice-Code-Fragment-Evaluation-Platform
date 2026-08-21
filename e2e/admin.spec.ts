@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
-  ACCOUNTS, openQuestion, signIn, signOut, submit, typeFragment, verdict,
+  ACCOUNTS, openQuestion, seedSubmissions, signIn, signOut, submit, typeFragment, verdict,
 } from './helpers';
 
 /**
@@ -295,15 +295,24 @@ test.describe('assessments', () => {
 });
 
 test.describe('students and analytics', () => {
-  test.beforeEach(async ({ page }) => signIn(page, ACCOUNTS.admin));
+  // Both views rank practice history, and this file runs before the student
+  // suite, so the history has to be created here.
+  test.beforeEach(async ({ page }) => {
+    await signIn(page, ACCOUNTS.admin);
+    await seedSubmissions(page, [
+      { qid: 'PY-LOOPS-0001', code: 'for number in numbers:\n    print(number)' },
+      { qid: 'PY-LOOPS-0001', code: 'print(*numbers, sep="\\n")' },
+      { qid: 'PY-BASICS-0001', code: 'oops(' },
+    ]);
+  });
 
   test('the roster drills down into one student', async ({ page }) => {
     await page.goto('/admin/students');
     await expect(page.getByText('Sam Student')).toBeVisible();
     await page.getByText('Sam Student').click();
 
-    await expect(page.getByText('solved')).toBeVisible();
-    await expect(page.getByText('accuracy')).toBeVisible();
+    await expect(page.getByText('solved', { exact: true })).toBeVisible();
+    await expect(page.getByText('accuracy', { exact: true })).toBeVisible();
     await expect(page.getByText('Recent attempts')).toBeVisible();
   });
 
@@ -312,7 +321,7 @@ test.describe('students and analytics', () => {
     await page.goto('/admin/students');
     await page.getByRole('button', { name: /Add student/ }).click();
     await page.getByPlaceholder('Full name').fill('Created By Admin');
-    await page.getByPlaceholder('Email').fill(email);
+    await page.getByPlaceholder('Email', { exact: true }).fill(email);
     await page.getByPlaceholder('Password').fill('created123');
     await page.getByPlaceholder('Batch').fill('Batch E2E');
     await page.getByRole('button', { name: /^Add$/ }).click();

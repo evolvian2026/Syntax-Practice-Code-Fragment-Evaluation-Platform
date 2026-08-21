@@ -340,6 +340,31 @@ describe('admin', () => {
     expect(res.body.results[1].error).toMatch(/Unknown topic/);
   });
 
+  it('rejects an unresolvable row during a dry run, without writing anything', async () => {
+    const before = await call('/admin/questions?limit=1&search=Dry run only', { token: adminToken });
+
+    const res = await call('/admin/questions-import', {
+      method: 'POST', token: adminToken,
+      body: JSON.stringify({
+        dryRun: true,
+        questions: [
+          { language: 'python', topic: 'loops', difficulty: 'Easy', questionType: 'FILL_CODE', evaluationType: 'AST', title: 'Dry run only', statement: 'This row is fine.', starterCode: '{{STUDENT_CODE}}', requiredConstructs: ['FOR_LOOP'] },
+          { language: 'python', topic: 'nope', difficulty: 'Easy', questionType: 'FILL_CODE', evaluationType: 'AST', title: 'Dry run bad topic', statement: 'This row names a topic that does not exist.', starterCode: '{{STUDENT_CODE}}', requiredConstructs: ['FOR_LOOP'] },
+        ],
+      }),
+    });
+
+    // A dry run that reported both rows as importable would be lying: the
+    // second fails on the real import.
+    expect(res.body.dryRun).toBe(true);
+    expect(res.body.created).toBe(1);
+    expect(res.body.failed).toBe(1);
+    expect(res.body.results[1].error).toMatch(/Unknown topic/);
+
+    const after = await call('/admin/questions?limit=1&search=Dry run only', { token: adminToken });
+    expect(after.body.total).toBe(before.body.total);
+  });
+
   it('surfaces analytics for the cohort', async () => {
     const res = await call('/admin/analytics/overview', { token: adminToken });
     expect(res.body.overview.submissions).toBeGreaterThan(0);

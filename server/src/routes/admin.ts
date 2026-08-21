@@ -15,7 +15,7 @@ import {
 import { listSubmissions } from '../db/repositories/submissions.js';
 import { STUDENT_MARKER } from '../evaluation/assembler.js';
 import { evaluate } from '../evaluation/engine.js';
-import { toEvaluable } from '../db/repositories/questions.js';
+import { resolveIds, toEvaluable } from '../db/repositories/questions.js';
 import { hasAdapter } from '../evaluation/languages/registry.js';
 import { toStudentView } from '../services/practice.js';
 import { asyncHandler, NotFoundError, parseIntParam, validate, ValidationError } from './helpers.js';
@@ -339,6 +339,9 @@ adminRouter.post('/questions-import', asyncHandler(async (req, res) => {
       const input = parsed.data as QuestionInput;
       assertAuthorable(input);
       if (body.dryRun) {
+        // A dry run has to resolve the catalog references too, or it would
+        // report a row as importable and then fail on the real import.
+        resolveIds(input);
         results.push({ index, qid: input.qid, status: 'created' });
         continue;
       }

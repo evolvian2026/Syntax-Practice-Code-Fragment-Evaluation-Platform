@@ -133,3 +133,33 @@ export async function score(page: Page): Promise<string> {
 export async function openTab(page: Page, name: string): Promise<void> {
   await page.getByRole('tab', { name: new RegExp(name, 'i') }).click();
 }
+
+/**
+ * Records submissions straight through the API.
+ *
+ * Analytics and the roster only have something to rank once students have
+ * practised, and `admin.spec.ts` runs before `student.spec.ts`. Seeding that
+ * history through the UI would cost minutes, so tests that need it post the
+ * attempts directly.
+ */
+export async function seedSubmissions(
+  page: Page,
+  attempts: Array<{ qid: string; code: string }>,
+): Promise<void> {
+  const origin = new URL(page.url()).origin;
+  const login = await page.request.post(`${origin}/api/auth/login`, { data: ACCOUNTS.student });
+  const { token } = (await login.json()) as { token: string };
+  const headers = { Authorization: `Bearer ${token}` };
+
+  const list = await page.request.get(`${origin}/api/practice/questions?limit=200`, { headers });
+  const { questions } = (await list.json()) as { questions: Array<{ id: number; qid: string }> };
+
+  for (const attempt of attempts) {
+    const question = questions.find((q) => q.qid === attempt.qid);
+    if (!question) throw new Error(`seedSubmissions: no question ${attempt.qid}`);
+    await page.request.post(`${origin}/api/practice/questions/${question.id}/submit`, {
+      headers,
+      data: { code: attempt.code, timeSpentMs: 5_000 },
+    });
+  }
+}

@@ -341,7 +341,11 @@ export interface QuestionInput {
 
 export class CatalogReferenceError extends Error {}
 
-function resolveIds(input: QuestionInput): { languageId: number; topicId: number; subtopicId: number | null; datasetId: number | null } {
+/**
+ * Resolves the catalog rows a question refers to, raising if any is missing.
+ * Exported so an import dry run can check references without writing.
+ */
+export function resolveIds(input: QuestionInput): { languageId: number; topicId: number; subtopicId: number | null; datasetId: number | null } {
   const conn = db();
   const language = conn.prepare('SELECT id FROM languages WHERE slug = ?').get(input.language) as { id: number } | undefined;
   if (!language) throw new CatalogReferenceError(`Unknown language "${input.language}".`);
