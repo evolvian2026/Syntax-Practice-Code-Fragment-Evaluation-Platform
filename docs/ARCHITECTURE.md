@@ -111,6 +111,13 @@ the subprocess driver when no daemon responds.
 Because it is a parse tree and not a regex, `print(*numbers)` can never register
 as a loop, and `[5,10,15]` and `[5, 10, 15]` produce identical dumps.
 
+A fragment may be a block *header* whose body lives in the template — a
+fix-the-syntax question can ask for the `for` line alone. On its own that is an
+incomplete block, so the harness retries it with a synthetic body and leaves the
+stand-in out of the reported constructs. A header that is genuinely broken
+raises `SyntaxError` rather than `IndentationError` and is reported unchanged,
+so `for n in numbers` still yields "expected ':'".
+
 ## Scoring
 
 - Correct: `maxScore`, reduced 15% per hint (capped at 60%), zero if the

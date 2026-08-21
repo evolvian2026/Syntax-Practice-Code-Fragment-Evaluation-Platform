@@ -18,8 +18,8 @@ execution sandbox.
 | -------------------- | ------ |
 | `evaluation.test.ts` | Template assembly and re-indentation; correct fragments; syntax errors; correct-output-wrong-construct; hidden tests; runtime errors; infinite loops; restricted and required keywords; syntax equivalence; multiple valid solutions; AST-only grading; hint and solution scoring. |
 | `sql.test.ts`        | Clause detection (including keywords inside string literals); the read-only sandbox database; DDL/DML refusal; stacked statements; unknown-column messages; hidden tests seeding extra rows; JOIN grading; injection attempts and dataset integrity afterwards. |
-| `sandbox.test.ts`    | Python isolation (`os.system`, `subprocess`, sockets, files, infinite loops, sleeps, memory); AST construct detection; JavaScript execution under Node's permission model; HTML/CSS parsing; C, C++ and Java compile-and-run. |
-| `api.test.ts`        | The HTTP surface end to end: auth, the practice loop, hidden-test redaction, hints, XP and badges, submission history, dashboard, leaderboard, admin CRUD, validation, dry-run, duplicate, import/export, analytics, and the assessment lifecycle. |
+| `sandbox.test.ts`    | Python isolation (`os.system`, `subprocess`, sockets, files, infinite loops, sleeps, memory); AST construct detection, including a block header whose body lives in the template; JavaScript execution under Node's permission model; HTML/CSS parsing; C, C++ and Java compile-and-run. |
+| `api.test.ts`        | The HTTP surface end to end: auth, the practice loop, hidden-test redaction, hints, XP and badges, submission history, dashboard, leaderboard, admin CRUD, validation, the import dry run (including that it rejects an unresolvable row without writing), duplicate, import/export, analytics, and the assessment lifecycle. |
 
 ## End to end — `e2e/`
 
@@ -45,7 +45,14 @@ server; `playwright.config.ts` waits for `/api/health` before the first test.
   waiting yields the previous result.
 - Monaco recycles `.view-line` nodes, so DOM order does not follow visual order;
   `readFragment` sorts by vertical offset.
-- A full E2E run takes roughly 20 minutes: every test signs in for real and every
+- Tests that act as two people at once need two browser *contexts*, not two
+  tabs: `context.newPage()` shares localStorage, so the second user still
+  carries the first one's token and is redirected straight past `/login`.
+  `signInAsOther` handles this, passing `baseURL` explicitly because a manually
+  created context does not inherit it from the config.
+- `admin.spec.ts` runs before `student.spec.ts`, so anything that ranks practice
+  history has to create it — `seedSubmissions` posts attempts through the API.
+- A full E2E run takes roughly 27 minutes: every test signs in for real and every
   submission compiles or executes real code in the sandbox.
 
 ### Artifacts
