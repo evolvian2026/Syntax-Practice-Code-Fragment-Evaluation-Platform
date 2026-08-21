@@ -1,0 +1,13 @@
+import { execute } from '../src/sandbox/index.js';
+const py = await execute({ runtime: 'python', source: 'numbers=[1,2,3]\nfor n in numbers:\n  print(n)', timeoutMs: 3000, memoryMb: 128 });
+console.log('PY', JSON.stringify(py));
+const js = await execute({ runtime: 'node', source: 'const sq = n => n*n;\nconsole.log(sq(5));', timeoutMs: 3000, memoryMb: 128 });
+console.log('JS', JSON.stringify(js));
+const jsBad = await execute({ runtime: 'node', source: 'const fs = await import("node:fs"); fs.writeFileSync("/tmp/zz","1"); console.log("wrote");', timeoutMs: 3000, memoryMb: 128 });
+console.log('JSBAD', JSON.stringify(jsBad).slice(0,200));
+const c = await execute({ runtime: 'c', source: '#include <stdio.h>\nint main(){int num=4; if(num%2==0) printf("Even\\n"); return 0;}', timeoutMs: 3000, memoryMb: 64 });
+console.log('C', JSON.stringify(c));
+const cpp = await execute({ runtime: 'cpp', source: '#include <iostream>\n#include <vector>\nint main(){std::vector<int> v={10,20,30}; for(int x: v) std::cout<<x<<"\\n"; }', timeoutMs: 3000, memoryMb: 128 });
+console.log('CPP', JSON.stringify(cpp));
+const java = await execute({ runtime: 'java', source: 'public class Main { public static void main(String[] a){ for(int i=0;i<3;i++) System.out.println(i); } }', timeoutMs: 5000, memoryMb: 256 });
+console.log('JAVA', JSON.stringify(java));

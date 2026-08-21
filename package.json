@@ -1,0 +1,27 @@
+{
+  "name": "syntax-practice-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Syntax Practice & Code Fragment Evaluation Platform — practice programming constructs, not whole programs.",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,magenta \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "npm --workspace server run dev",
+    "dev:client": "npm --workspace client run dev",
+    "build": "npm --workspace server run build && npm --workspace client run build",
+    "start": "npm --workspace server run start",
+    "migrate": "npm --workspace server run migrate",
+    "seed": "npm --workspace server run seed",
+    "test": "npm --workspace server run test",
+    "setup": "npm install && npm run migrate && npm run seed"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
