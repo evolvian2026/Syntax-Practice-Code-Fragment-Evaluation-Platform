@@ -19,8 +19,9 @@ test.describe('access control', () => {
 
   test('an admin sees the admin navigation', async ({ page }) => {
     await signIn(page, ACCOUNTS.admin);
-    await expect(page.getByRole('link', { name: 'Admin' })).toBeVisible();
-    await page.getByRole('link', { name: 'Admin' }).click();
+    const adminLink = page.getByRole('link', { name: 'Admin', exact: true });
+    await expect(adminLink).toBeVisible();
+    await adminLink.click();
     await expect(page.getByRole('heading', { name: 'Admin' })).toBeVisible();
     await expect(page.getByText('staff area')).toBeVisible();
   });
@@ -38,8 +39,9 @@ test.describe('admin overview', () => {
     );
     expect(published).toBeGreaterThanOrEqual(140);
 
-    await expect(page.getByText('Students')).toBeVisible();
-    await expect(page.getByText('Submissions')).toBeVisible();
+    const stats = page.locator('.card').filter({ hasText: /^(Students|Submissions)/ });
+    await expect(stats.filter({ hasText: 'Students' }).first()).toBeVisible();
+    await expect(stats.filter({ hasText: 'Submissions' }).first()).toBeVisible();
     await expect(page.getByRole('link', { name: /New question/ })).toBeVisible();
   });
 });

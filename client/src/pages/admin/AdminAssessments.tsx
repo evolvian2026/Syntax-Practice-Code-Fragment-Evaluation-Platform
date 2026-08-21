@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { ErrorNote, Spinner, formatDate } from '../../components/ui';
 import { api, type CatalogLanguage, type QuestionListItem } from '../../lib/api';
 
@@ -205,32 +205,33 @@ function AssessmentComposer({
   };
 
   const topics = languages.find((l) => l.slug === filter.language)?.topics ?? [];
+  const fieldId = useId();
   const totalPoints = Object.values(picked).reduce((sum, p) => sum + p, 0);
 
   return (
     <div className="card space-y-4 p-4">
       <div className="grid gap-3 lg:grid-cols-3">
         <div>
-          <label className="label">Title</label>
-          <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+          <label className="label" htmlFor={`${fieldId}-title`}>Title</label>
+          <input id={`${fieldId}-title`} className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
         </div>
         <div>
-          <label className="label">Duration (minutes)</label>
-          <input type="number" className="input" value={form.durationMinutes}
+          <label className="label" htmlFor={`${fieldId}-duration`}>Duration (minutes)</label>
+          <input id={`${fieldId}-duration`} type="number" className="input" value={form.durationMinutes}
             onChange={(e) => setForm({ ...form, durationMinutes: Number(e.target.value) })} />
         </div>
         <div>
-          <label className="label">Max attempts</label>
-          <input type="number" className="input" value={form.maxAttempts}
+          <label className="label" htmlFor={`${fieldId}-attempts`}>Max attempts</label>
+          <input id={`${fieldId}-attempts`} type="number" className="input" value={form.maxAttempts}
             onChange={(e) => setForm({ ...form, maxAttempts: Number(e.target.value) })} />
         </div>
         <div className="lg:col-span-2">
-          <label className="label">Description</label>
-          <input className="input" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+          <label className="label" htmlFor={`${fieldId}-description`}>Description</label>
+          <input id={`${fieldId}-description`} className="input" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
         </div>
         <div>
-          <label className="label">Status</label>
-          <select className="input" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+          <label className="label" htmlFor={`${fieldId}-status`}>Status</label>
+          <select id={`${fieldId}-status`} className="input" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
             <option value="draft">Draft</option>
             <option value="published">Published</option>
           </select>

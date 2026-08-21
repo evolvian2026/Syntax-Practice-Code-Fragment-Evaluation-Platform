@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { cloneElement, isValidElement, useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { FragmentEditor } from '../../components/FragmentEditor';
 import { CodeBlock, ErrorNote, Spinner, Tabs, VerdictBadge } from '../../components/ui';
@@ -588,11 +588,21 @@ export function AdminQuestionBuilder({ theme }: { theme: 'dark' | 'light' }) {
 
 // -------------------------------------------------------------- helpers
 
+/**
+ * A labelled form control. The label is bound to the control with `htmlFor`,
+ * so screen readers announce it and clicking the label focuses the field. The
+ * id is generated here and pushed into the child, which keeps every call site
+ * free of id bookkeeping; a child that already carries an id keeps it.
+ */
 function Field({ label, children, className = '' }: { label: string; children: React.ReactNode; className?: string }) {
+  const generatedId = useId();
+  const child = isValidElement<{ id?: string }>(children) ? children : null;
+  const id = child?.props.id ?? generatedId;
+
   return (
     <div className={className}>
-      <label className="label">{label}</label>
-      {children}
+      <label className="label" htmlFor={id}>{label}</label>
+      {child ? cloneElement(child, { id }) : children}
     </div>
   );
 }
@@ -606,12 +616,13 @@ function ConstructPicker({
   onChange(value: string[]): void;
 }) {
   const [open, setOpen] = useState(false);
+  const inputId = useId();
   const toggle = (construct: string) =>
     onChange(selected.includes(construct) ? selected.filter((c) => c !== construct) : [...selected, construct]);
 
   return (
     <div>
-      <label className="label">{label}</label>
+      <label className="label" htmlFor={inputId}>{label}</label>
       <div className="mb-2 flex flex-wrap gap-1">
         {selected.length === 0 && <span className="text-sm text-slate-400">None</span>}
         {selected.map((c) => (
@@ -625,6 +636,7 @@ function ConstructPicker({
           {open ? 'Close picker' : 'Pick constructs'}
         </button>
         <input
+          id={inputId}
           className="input flex-1 font-mono text-xs"
           placeholder="Or type custom ids, comma separated (e.g. METHOD:append, ANY:FOR_LOOP|WHILE_LOOP)"
           value={selected.join(', ')}
