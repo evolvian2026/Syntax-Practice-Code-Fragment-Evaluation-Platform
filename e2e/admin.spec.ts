@@ -80,7 +80,7 @@ test.describe('question management', () => {
     await page.getByLabel('Statement').fill('Write a for loop that prints each number squared.');
     await page.getByLabel('Instructions (optional)').fill('The list is provided. Write only the loop.');
     await page.getByLabel('Language').selectOption('python');
-    await page.getByLabel('Topic').selectOption('loops');
+    await page.getByLabel('Topic', { exact: true }).selectOption('loops');
     await page.getByLabel('Subtopic').selectOption('for');
     await page.getByLabel('Difficulty').selectOption('Easy');
     await page.getByLabel('Question type').selectOption('COMPLETE_LOOP');
@@ -154,7 +154,7 @@ test.describe('question management', () => {
     await page.goto('/admin/questions/new');
     await page.getByLabel('Title').fill('Broken template');
     await page.getByLabel('Statement').fill('This template is missing its marker.');
-    await page.getByLabel('Topic').selectOption('loops');
+    await page.getByLabel('Topic', { exact: true }).selectOption('loops');
 
     await page.getByRole('tab', { name: 'Code template' }).click();
     await page.getByLabel('Starter code (shown to the student)').fill('print("no marker here")');
@@ -170,7 +170,7 @@ test.describe('question management', () => {
     await page.goto('/admin/questions/new');
     await page.getByLabel('Title').fill('Disposable question');
     await page.getByLabel('Statement').fill('This one exists only to be deleted.');
-    await page.getByLabel('Topic').selectOption('loops');
+    await page.getByLabel('Topic', { exact: true }).selectOption('loops');
     await page.getByLabel('Evaluation type').selectOption('AST');
     await page.getByRole('tab', { name: 'Grading rules' }).click();
     await page.getByPlaceholder(/Or type custom ids/).first().fill('FOR_LOOP');
@@ -260,7 +260,7 @@ test.describe('assessments', () => {
 
     await page.getByPlaceholder('Search…').fill('Print every number in a list');
     await page.waitForTimeout(800);
-    await page.locator('input[type="checkbox"]').first().check();
+    await page.locator('.max-h-72 input[type="checkbox"]').first().check();
     await expect(page.getByText(/1 picked/)).toBeVisible();
 
     await page.getByRole('button', { name: /Create assessment/ }).click();
@@ -316,7 +316,7 @@ test.describe('students and analytics', () => {
     await expect(page.getByText('Recent attempts')).toBeVisible();
   });
 
-  test('creates a student account that can then sign in', async ({ page, context }) => {
+  test('creates a student account that can then sign in', async ({ page, browser }) => {
     const email = `e2e-created-${Date.now()}@example.com`;
     await page.goto('/admin/students');
     await page.getByRole('button', { name: /Add student/ }).click();
@@ -327,10 +327,14 @@ test.describe('students and analytics', () => {
     await page.getByRole('button', { name: /^Add$/ }).click();
     await expect(page.getByText('Created By Admin')).toBeVisible();
 
-    const newPage = await context.newPage();
+    // A second tab in the same context would still carry the admin's token and
+    // be redirected straight past /login, so the new account needs its own.
+    // A manually created context does not inherit baseURL from the config.
+    const fresh = await browser.newContext({ baseURL: new URL(page.url()).origin });
+    const newPage = await fresh.newPage();
     await signIn(newPage, { email, password: 'created123' });
     await expect(newPage.getByRole('link', { name: /Practice/ }).first()).toBeVisible();
-    await newPage.close();
+    await fresh.close();
   });
 
   test('analytics rank questions, topics and errors', async ({ page }) => {
