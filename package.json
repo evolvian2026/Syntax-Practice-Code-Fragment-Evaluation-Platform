@@ -2,7 +2,7 @@
   "name": "syntax-practice-platform",
   "version": "1.0.0",
   "private": true,
-  "description": "Syntax Practice & Code Fragment Evaluation Platform — practice programming constructs, not whole programs.",
+  "description": "Syntax Practice & Code Fragment Evaluation Platform \u2014 practice programming constructs, not whole programs.",
   "workspaces": [
     "server",
     "client"
@@ -16,9 +16,12 @@
     "migrate": "npm --workspace server run migrate",
     "seed": "npm --workspace server run seed",
     "test": "npm --workspace server run test",
-    "setup": "npm install && npm run migrate && npm run seed"
+    "setup": "npm install && npm run migrate && npm run seed",
+    "test:e2e": "playwright test",
+    "test:all": "npm run test && npm run test:e2e"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "concurrently": "^9.1.2"
   },
   "engines": {

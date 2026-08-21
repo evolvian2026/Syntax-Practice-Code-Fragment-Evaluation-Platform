@@ -46,7 +46,9 @@ a toolchain is missing.
 ```bash
 npm run build     # production build (server + client)
 npm start         # serve API and the built UI from one process on :4000
-npm test          # 113 tests
+npm test          # 115 unit and integration tests
+npm run test:e2e  # browser tests driving the real application
+npm run test:all  # both
 ```
 
 ---
@@ -60,9 +62,9 @@ hard failure:
 fragment
    │
    ├─ 1. guard       length, forbidden/required keywords, dangerous patterns
-   ├─ 2. syntax      does the fragment parse at all?
-   ├─ 3. construct   did the student use the construct being taught?
-   ├─ 4. assemble    {{STUDENT_CODE}} → full program (re-indented to the marker)
+   ├─ 2. assemble    {{STUDENT_CODE}} → full program (re-indented to the marker)
+   ├─ 3. syntax      does the fragment parse at all?
+   ├─ 4. construct   did the student use the construct being taught?
    ├─ 5. execute     isolated sandbox: time, memory, process, FS and net limits
    └─ 6. tests       public tests on Run; public + hidden tests on Submit
    │
@@ -210,6 +212,7 @@ are most likely to change:
 - [`docs/DATABASE.md`](docs/DATABASE.md) — schema reference and the Postgres/MySQL path
 - [`docs/API.md`](docs/API.md) — every endpoint
 - [`docs/QUESTION_AUTHORING.md`](docs/QUESTION_AUTHORING.md) — the question format in full
+- [`docs/TESTING.md`](docs/TESTING.md) — what the suites cover and how to run them
 
 ## Repository layout
 
@@ -222,10 +225,11 @@ server/
     routes/        auth, practice, progress, assessments, admin, ai
     services/      practice orchestration, gamification, learning path, AI
     seed/          taxonomy, datasets, 142 questions, seeder
-  tests/           113 tests
+  tests/           unit and integration tests
 client/
   src/
     components/    layout, fragment editor, UI kit
     pages/         student pages + admin panel
     lib/           API client, auth, Monaco setup
+e2e/               browser tests against the production build
 ```

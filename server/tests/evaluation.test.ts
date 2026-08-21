@@ -186,6 +186,27 @@ describe('hidden test cases', () => {
     expect(result.feedback).toMatch(/hidden test/i);
   });
 
+  it('gives no partial credit for passing only the visible example', async () => {
+    const result = await evaluate({ question: withHidden, fragment: 'print("1\\n2\\n3")', mode: 'submit' });
+    expect(result.verdict).toBe('WRONG_OUTPUT');
+    expect(result.score).toBe(0);
+  });
+
+  it('gives partial credit when a hidden test also passes', async () => {
+    const partial = question({
+      starterCode: '{{SETUP_CODE}}\n\n{{STUDENT_CODE}}',
+      testCases: [
+        { visibility: 'public', matcher: 'trimmed', weight: 1, setupCode: 'numbers = [1]', expectedOutput: '1' },
+        { visibility: 'hidden', matcher: 'trimmed', weight: 1, setupCode: 'numbers = [2]', expectedOutput: '2' },
+        { visibility: 'hidden', matcher: 'trimmed', weight: 1, setupCode: 'numbers = [3, 4]', expectedOutput: '3\n4' },
+      ],
+    });
+    // Prints only the first item: passes the two single-item tests, fails the third.
+    const result = await evaluate({ question: partial, fragment: 'print(numbers[0])', mode: 'submit' });
+    expect(result.verdict).toBe('PARTIAL');
+    expect(result.score).toBeGreaterThan(0);
+  });
+
   it('never leaks hidden expectations in the failing test payload', async () => {
     const result = await evaluate({ question: withHidden, fragment: 'print("1\\n2\\n3")', mode: 'submit' });
     const hidden = result.tests.filter((t) => t.visibility === 'hidden');

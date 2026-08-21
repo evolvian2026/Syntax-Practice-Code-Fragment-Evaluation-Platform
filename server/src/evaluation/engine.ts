@@ -49,23 +49,9 @@ export async function evaluate(request: EvaluationRequest): Promise<EvaluationRe
     return fail(base, stages, verdict, 'restricted', guard.stage.message ?? 'Restricted code.', guard.stage.message ?? '');
   }
 
-  // ------------------------------------------------- 2. fragment syntax
-  const analysis = await adapter.analyzeFragment(fragment, question);
-  if (!analysis.ok) {
-    const message = formatSyntaxError(analysis);
-    stages.push({ stage: 'syntax', passed: false, title: 'Syntax', message, details: analysis.error ?? undefined });
-    return fail(base, stages, 'SYNTAX_ERROR', 'syntax', message, message);
-  }
-  stages.push({ stage: 'syntax', passed: true, title: 'Syntax', message: 'Your fragment parses correctly.' });
-  base.detectedConstructs = analysis.constructs;
-
-  // --------------------------------------------- 3. required constructs
-  const constructCheck = checkConstructs(analysis.constructs, question);
-  stages.push(constructCheck.stage);
-  base.missingConstructs = constructCheck.missing;
-  base.usedForbiddenConstructs = constructCheck.forbidden;
-
-  // ------------------------------------------------ 4. assemble program
+  // ------------------------------------------------ 2. assemble program
+  // Assembly is textual, so it happens before parsing: a student whose
+  // fragment does not compile can still see exactly what would have run.
   let assembled;
   try {
     assembled = assemble(question, fragment, adapter.setupIsData ? null : question.testCases[0] ?? null);
@@ -76,6 +62,22 @@ export async function evaluate(request: EvaluationRequest): Promise<EvaluationRe
     throw err;
   }
   base.generatedCode = assembled.program;
+
+  // ------------------------------------------------- 3. fragment syntax
+  const analysis = await adapter.analyzeFragment(fragment, question);
+  if (!analysis.ok) {
+    const message = formatSyntaxError(analysis);
+    stages.push({ stage: 'syntax', passed: false, title: 'Syntax', message, details: analysis.error ?? undefined });
+    return fail(base, stages, 'SYNTAX_ERROR', 'syntax', message, message);
+  }
+  stages.push({ stage: 'syntax', passed: true, title: 'Syntax', message: 'Your fragment parses correctly.' });
+  base.detectedConstructs = analysis.constructs;
+
+  // --------------------------------------------- 4. required constructs
+  const constructCheck = checkConstructs(analysis.constructs, question);
+  stages.push(constructCheck.stage);
+  base.missingConstructs = constructCheck.missing;
+  base.usedForbiddenConstructs = constructCheck.forbidden;
 
   // -------------------------------------------------- 5. grade the body
   const graded = await gradeByType(request, adapter, analysis, stages);
@@ -543,6 +545,11 @@ export function computeScore(result: EvaluationResult, request: EvaluationReques
   if (!result.isCorrect) {
     // Partial credit for passing some tests, never for the wrong construct.
     if (result.verdict === 'WRONG_OUTPUT' && result.tests.length > 1) {
+      // Passing only the visible example is not partial progress — it is what a
+      // hardcoded answer looks like (§13), so it earns nothing.
+      const hidden = result.tests.filter((t) => t.visibility === 'hidden');
+      if (hidden.length > 0 && !hidden.some((t) => t.passed)) return 0;
+
       const total = result.tests.reduce((sum, t) => sum + t.weight, 0) || 1;
       const earned = result.tests.filter((t) => t.passed).reduce((sum, t) => sum + t.weight, 0);
       const partial = Math.round((earned / total) * result.maxScore * 0.5);
@@ -583,6 +590,7 @@ function emptyResult(question: EvaluableQuestion): EvaluationResult {
   };
 }
 
+/** Short-circuits the pipeline, preserving anything already computed. */
 function fail(
   base: EvaluationResult,
   stages: StageResult[],

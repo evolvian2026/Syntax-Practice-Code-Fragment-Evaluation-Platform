@@ -29,7 +29,7 @@ POST /api/practice/questions/:id/submit  { code, timeSpentMs }
   │
   ├─ routes/practice.ts         auth, validation
   ├─ services/practice.ts       loads the question, counts hints, calls the engine
-  ├─ evaluation/engine.ts       guard → syntax → construct → assemble → execute → tests
+  ├─ evaluation/engine.ts       guard → assemble → syntax → construct → execute → tests
   │     ├─ checks/guards.ts     §14 restrictions
   │     ├─ languages/*.ts       parse, analyse, execute for this language
   │     ├─ assembler.ts         {{STUDENT_CODE}} substitution and re-indentation
@@ -117,7 +117,12 @@ as a loop, and `[5,10,15]` and `[5, 10, 15]` produce identical dumps.
   solution was revealed. Those penalties apply to free practice only — inside an
   assessment the assessment's own points decide the score.
 - `WRONG_CONSTRUCT`: always 0, regardless of output.
-- `WRONG_OUTPUT` with several weighted tests: partial credit up to 50%.
+- `WRONG_OUTPUT` with several weighted tests: partial credit up to 50% — but
+  only when at least one *hidden* test passed. Passing just the visible example
+  is what a hardcoded answer looks like, so it earns nothing.
+
+Assembly happens before parsing, so a student whose fragment does not compile
+can still open the "Generated code" tab and see exactly what would have run.
 
 ## Frontend
 
