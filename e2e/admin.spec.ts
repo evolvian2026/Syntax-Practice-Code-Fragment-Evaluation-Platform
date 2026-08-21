@@ -119,7 +119,6 @@ test.describe('question management', () => {
     await expect(page.getByText('✓ Required construct')).toBeVisible();
 
     // --- save
-    page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: /Save question/ }).click();
     await page.waitForURL(/\/admin\/questions\/\d+/);
     await expect(page.getByRole('heading', { name: /Edit PYT?-LOOPS-\d+/ })).toBeVisible();
@@ -166,7 +165,6 @@ test.describe('question management', () => {
   });
 
   test('deletes a question', async ({ page }) => {
-    await page.goto('/admin/questions?search=Broken');
     // Create something disposable first.
     await page.goto('/admin/questions/new');
     await page.getByLabel('Title').fill('Disposable question');
@@ -175,7 +173,8 @@ test.describe('question management', () => {
     await page.getByLabel('Evaluation type').selectOption('AST');
     await page.getByRole('tab', { name: 'Grading rules' }).click();
     await page.getByPlaceholder(/Or type custom ids/).first().fill('FOR_LOOP');
-    page.once('dialog', (dialog) => dialog.accept());
+    // Saving never confirms — only Delete does, below. A second handler here
+    // would race the first one to the same dialog and fail.
     await page.getByRole('button', { name: /Save question/ }).click();
     await page.waitForURL(/\/admin\/questions\/\d+/);
 
