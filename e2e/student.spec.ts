@@ -68,12 +68,17 @@ test.describe('browsing the question bank', () => {
     await page.getByRole('button', { name: /^Loops/ }).first().click();
     await expect(page).toHaveURL(/topic=loops/);
 
-    const beforeDifficulty = await page.locator('a[href^="/practice/"]').count();
+    const cards = page.locator('a[href^="/practice/"]');
+    const beforeDifficulty = await cards.count();
     await page.getByRole('button', { name: 'Hard', exact: true }).click();
     await expect(page).toHaveURL(/difficulty=Hard/);
-    const afterDifficulty = await page.locator('a[href^="/practice/"]').count();
-    expect(afterDifficulty).toBeLessThan(beforeDifficulty);
-    expect(afterDifficulty).toBeGreaterThan(0);
+
+    // The URL changes as soon as the button is clicked, but the list is
+    // refetched — counting straight away reads the unfiltered list.
+    await expect
+      .poll(() => cards.count(), { timeout: 15_000, message: 'the list should shrink once filtered' })
+      .toBeLessThan(beforeDifficulty);
+    expect(await cards.count()).toBeGreaterThan(0);
 
     for (const card of await page.locator('a[href^="/practice/"]').all()) {
       await expect(card.getByText('Hard', { exact: true })).toBeVisible();
