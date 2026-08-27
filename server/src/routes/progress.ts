@@ -5,6 +5,8 @@ import { breakdown, dashboardFor, leaderboard } from '../db/repositories/progres
 import { listSubmissions } from '../db/repositories/submissions.js';
 import { badgesFor, xpForLevel } from '../services/gamification.js';
 import { learningPathFor } from '../services/learningPath.js';
+import { gapsForUser, masteryForUser } from '../services/mastery.js';
+import { dueForUser, summaryForUser } from '../services/review.js';
 import { asyncHandler, parseIntParam } from './helpers.js';
 
 export const progressRouter = Router();
@@ -75,4 +77,21 @@ progressRouter.get('/activity', asyncHandler(async (req, res) => {
     GROUP BY date(created_at) ORDER BY day
   `).all(req.user!.id, `-${days} days`) as any[];
   res.json({ activity: rows });
+}));
+
+/** Construct-level mastery: what the student can actually write, not just which topics they visited. */
+progressRouter.get('/mastery', asyncHandler(async (req, res) => {
+  const language = typeof req.query.language === 'string' ? req.query.language : undefined;
+  res.json({
+    mastery: masteryForUser(req.user!.id, { language }),
+    gaps: gapsForUser(req.user!.id, parseIntParam(req.query.gapLimit, 12)),
+  });
+}));
+
+/** The spaced-repetition queue. */
+progressRouter.get('/reviews', asyncHandler(async (req, res) => {
+  res.json({
+    summary: summaryForUser(req.user!.id),
+    due: dueForUser(req.user!.id, parseIntParam(req.query.limit, 20)),
+  });
 }));

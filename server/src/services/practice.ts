@@ -11,6 +11,8 @@ import {
   countHintsUsed, hasRevealedSolution, lastSubmissionFor, recordSubmission,
 } from '../db/repositories/submissions.js';
 import { awardForSolve, type AwardResult } from './gamification.js';
+import { matchMisconception, type MisconceptionMatch } from './misconceptions.js';
+import { gradeAttempt, recordReview } from './review.js';
 
 /**
  * Practice orchestration: what a student sees, what they may not see, and what
@@ -162,6 +164,10 @@ export interface AttemptOutcome {
   award: AwardResult | null;
   explanation: string | null;
   solutions: Array<{ code: string; note: string | null; isPrimary: boolean }>;
+  /** A hint aimed at the specific mistake this answer made, when one matches. */
+  misconception: MisconceptionMatch | null;
+  /** When this question next comes up for review, once it has been solved. */
+  reviewDueAt: string | null;
 }
 
 export async function attempt(input: AttemptInput): Promise<AttemptOutcome> {
@@ -213,6 +219,24 @@ export async function attempt(input: AttemptInput): Promise<AttemptOutcome> {
     });
   }
 
+  // A wrong answer gets a hint aimed at what it actually did wrong, if the
+  // author has described that misconception.
+  const misconception = mode === 'submit'
+    ? matchMisconception(question.question.id, fragment, result)
+    : null;
+
+  // Reviews are scheduled from real practice only: an assessment is a
+  // measurement, not a study session.
+  let reviewDueAt: string | null = null;
+  if (mode === 'submit' && !inAssessment && (result.isCorrect || wasSolvedBefore)) {
+    const schedule = recordReview({
+      userId,
+      questionId: question.question.id,
+      quality: gradeAttempt({ isCorrect: result.isCorrect, hintsUsed, attemptNumber, solutionRevealed }),
+    });
+    reviewDueAt = schedule.dueAt;
+  }
+
   // §16 — the explanation and alternative solutions unlock once the student is
   // done with the question (solved it, or looked at the solution).
   const reveal = mode === 'submit' && (result.isCorrect || solutionRevealed);
@@ -226,6 +250,8 @@ export async function attempt(input: AttemptInput): Promise<AttemptOutcome> {
     solutions: reveal
       ? question.solutions.map((s) => ({ code: s.code, note: s.note, isPrimary: s.is_primary === 1 }))
       : [],
+    misconception,
+    reviewDueAt,
   };
 }
 

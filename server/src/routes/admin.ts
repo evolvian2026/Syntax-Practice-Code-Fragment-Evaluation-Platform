@@ -18,6 +18,10 @@ import { evaluate } from '../evaluation/engine.js';
 import { resolveIds, toEvaluable } from '../db/repositories/questions.js';
 import { hasAdapter } from '../evaluation/languages/registry.js';
 import { toStudentView } from '../services/practice.js';
+import { checkQuestion, healthSummary, listHealth, sweep } from '../services/questionHealth.js';
+import { listMisconceptions, misconceptionStats, replaceMisconceptions } from '../services/misconceptions.js';
+import { masteryAcrossCohort } from '../services/mastery.js';
+import { DeriveError, deriveQuestion } from '../services/deriveQuestion.js';
 import { asyncHandler, NotFoundError, parseIntParam, validate, ValidationError } from './helpers.js';
 
 export const adminRouter = Router();
@@ -132,7 +136,10 @@ adminRouter.post('/questions', asyncHandler(async (req, res) => {
   assertAuthorable(input);
   try {
     const created = createQuestion(input, req.user!.id);
-    res.status(201).json({ id: created.question.id, qid: created.question.qid, question: toQuestionInput(created) });
+    const health = await verifyOnPublish(created);
+    res.status(201).json({
+      id: created.question.id, qid: created.question.qid, question: toQuestionInput(created), health,
+    });
   } catch (err) {
     if (err instanceof CatalogReferenceError) {
       throw new ValidationError([{ path: 'topic', message: err.message }]);
@@ -147,7 +154,8 @@ adminRouter.put('/questions/:id', asyncHandler(async (req, res) => {
   try {
     const updated = updateQuestion(parseIntParam(req.params.id, 0), input);
     if (!updated) throw new NotFoundError('Question');
-    res.json({ id: updated.question.id, qid: updated.question.qid, question: toQuestionInput(updated) });
+    const health = await verifyOnPublish(updated);
+    res.json({ id: updated.question.id, qid: updated.question.qid, question: toQuestionInput(updated), health });
   } catch (err) {
     if (err instanceof CatalogReferenceError) {
       throw new ValidationError([{ path: 'topic', message: err.message }]);
@@ -274,6 +282,22 @@ adminRouter.post('/questions/dry-run', asyncHandler(async (req, res) => {
   res.json({ result });
 }));
 
+/**
+ * Records health whenever a question is saved.
+ *
+ * A published question whose own reference solution fails is unanswerable, so
+ * it is recorded (and returned to the builder) rather than silently shipped.
+ * A draft is checked too, but a failure there is expected while authoring.
+ */
+async function verifyOnPublish(full: Parameters<typeof checkQuestion>[0]) {
+  const record = await checkQuestion(full);
+  return {
+    status: record.status,
+    message: record.message,
+    blocksPublication: record.status === 'failing' && full.question.status === 'published',
+  };
+}
+
 /** Verifies the stored reference solution still passes — catches rotten questions. */
 adminRouter.post('/questions/:id/verify', asyncHandler(async (req, res) => {
   const full = findQuestionById(parseIntParam(req.params.id, 0));
@@ -291,6 +315,122 @@ adminRouter.post('/questions/:id/verify', asyncHandler(async (req, res) => {
       ? 'The reference solution passes every test case.'
       : `The reference solution fails: ${result.feedback}`,
     result,
+  });
+}));
+
+// ------------------------------------------------ derive from a program
+
+/**
+ * Turns a working program plus a selected line range into a question draft.
+ * Everything derived here — template, solution, constructs, expected output —
+ * comes from the program itself rather than from the author retyping it.
+ */
+adminRouter.post('/questions/derive', asyncHandler(async (req, res) => {
+  const body = validate(
+    z.object({
+      language: z.string(),
+      program: z.string().min(1).max(20000),
+      startLine: z.number().int().min(1),
+      endLine: z.number().int().min(1),
+      dataset: z.string().nullable().optional(),
+      stdin: z.string().nullable().optional(),
+      timeLimitMs: z.number().int().min(100).max(30000).optional(),
+    }),
+    req.body,
+  );
+
+  if (!hasAdapter(body.language)) {
+    throw new ValidationError([{ path: 'language', message: `No adapter for "${body.language}".` }]);
+  }
+
+  try {
+    res.json(await deriveQuestion({
+      language: body.language,
+      program: body.program,
+      startLine: body.startLine,
+      endLine: body.endLine,
+      dataset: body.dataset ?? null,
+      stdin: body.stdin ?? null,
+      timeLimitMs: body.timeLimitMs,
+    }));
+  } catch (err) {
+    if (err instanceof DeriveError) {
+      throw new ValidationError([{ path: 'program', message: err.message }]);
+    }
+    throw err;
+  }
+}));
+
+// -------------------------------------------------------- misconceptions
+
+const misconceptionSchema = z.object({
+  label: z.string().min(2),
+  hint: z.string().min(2),
+  displayOrder: z.number().int().min(0).optional(),
+  constructUsed: z.array(z.string()).default([]),
+  constructAbsent: z.array(z.string()).default([]),
+  fragmentRegex: z.string().nullable().optional(),
+  errorType: z.string().nullable().optional(),
+  verdict: z.string().nullable().optional(),
+});
+
+adminRouter.get('/questions/:id/misconceptions', asyncHandler(async (req, res) => {
+  const id = parseIntParam(req.params.id, 0);
+  if (!findQuestionById(id)) throw new NotFoundError('Question');
+  res.json({ misconceptions: listMisconceptions(id) });
+}));
+
+adminRouter.put('/questions/:id/misconceptions', asyncHandler(async (req, res) => {
+  const id = parseIntParam(req.params.id, 0);
+  if (!findQuestionById(id)) throw new NotFoundError('Question');
+  const body = validate(z.object({ misconceptions: z.array(misconceptionSchema).max(20) }), req.body);
+
+  // A regex that does not compile would silently never match, so it is
+  // rejected at authoring time rather than failing quietly in front of students.
+  body.misconceptions.forEach((rule, index) => {
+    if (!rule.fragmentRegex) return;
+    try {
+      new RegExp(rule.fragmentRegex, 'm');
+    } catch (err) {
+      throw new ValidationError([{
+        path: `misconceptions.${index}.fragmentRegex`,
+        message: `Not a valid regular expression: ${err instanceof Error ? err.message : String(err)}`,
+      }]);
+    }
+  });
+
+  replaceMisconceptions(id, body.misconceptions.map((m, i) => ({
+    label: m.label,
+    hint: m.hint,
+    displayOrder: m.displayOrder ?? i,
+    constructUsed: m.constructUsed,
+    constructAbsent: m.constructAbsent,
+    fragmentRegex: m.fragmentRegex ?? null,
+    errorType: m.errorType ?? null,
+    verdict: m.verdict ?? null,
+  })));
+  res.json({ misconceptions: listMisconceptions(id) });
+}));
+
+// ------------------------------------------------------- question health
+
+/** Verifies every published question's reference solution through the engine. */
+adminRouter.post('/questions-health/sweep', asyncHandler(async (req, res) => {
+  const body = validate(
+    z.object({
+      limit: z.number().int().min(1).max(2000).optional(),
+      status: z.enum(['healthy', 'failing', 'unverifiable']).optional(),
+    }),
+    req.body ?? {},
+  );
+  res.json(await sweep(body));
+}));
+
+adminRouter.get('/questions-health', asyncHandler(async (req, res) => {
+  const status = str(req.query.status) as 'healthy' | 'failing' | 'unverifiable' | undefined;
+  res.json({
+    summary: healthSummary(),
+    items: listHealth({ status, limit: parseIntParam(req.query.limit, 200) }),
   });
 }));
 
@@ -658,6 +798,16 @@ adminRouter.get('/analytics/questions', asyncHandler(async (req, res) => {
       order: (str(req.query.order) as any) ?? 'hardest',
     }),
   });
+}));
+
+/** Cohort accuracy per construct — the unit the platform actually teaches. */
+adminRouter.get('/analytics/constructs', asyncHandler(async (req, res) => {
+  res.json({ constructs: masteryAcrossCohort(parseIntParam(req.query.limit, 30)) });
+}));
+
+/** Which authored misconceptions actually fire, and how often. */
+adminRouter.get('/analytics/misconceptions', asyncHandler(async (req, res) => {
+  res.json({ misconceptions: misconceptionStats(parseIntParam(req.query.limit, 25)) });
 }));
 
 adminRouter.get('/analytics/topics', asyncHandler(async (_req, res) => {

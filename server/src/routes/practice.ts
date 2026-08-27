@@ -145,6 +145,8 @@ function handleAttempt(mode: 'run' | 'submit') {
       award: outcome.award,
       explanation: outcome.explanation,
       solutions: outcome.solutions,
+      misconception: outcome.misconception,
+      reviewDueAt: outcome.reviewDueAt,
     });
   });
 }

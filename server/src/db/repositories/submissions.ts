@@ -94,6 +94,8 @@ export function recordSubmission(input: SubmissionRecordInput): { submissionId: 
       stageStmt.run(submissionId, stage.stage, stage.title, stage.passed ? 1 : 0, stage.message ?? null);
     }
 
+    recordConstructs(submissionId, input);
+
     if (input.mode === 'submit') {
       updateProgress(input, attemptNumber);
     }
@@ -102,6 +104,57 @@ export function recordSubmission(input: SubmissionRecordInput): { submissionId: 
   });
 
   return txn();
+}
+
+/**
+ * The constructs a question demands, flattened.
+ *
+ * `ANY:FOR_LOOP|WHILE_LOOP` means either satisfies the requirement, so both
+ * sides count as required when marking what the student wrote.
+ */
+function requiredConstructsFor(questionId: number): Set<string> {
+  const row = db().prepare('SELECT required_constructs FROM questions WHERE id = ?')
+    .get(questionId) as { required_constructs: string } | undefined;
+  const listed = parseJson<string[]>(row?.required_constructs, []);
+  const flat = new Set<string>();
+  for (const entry of listed) {
+    if (entry.startsWith('ANY:')) {
+      for (const alternative of entry.slice(4).split('|')) flat.add(alternative.trim());
+    } else {
+      flat.add(entry);
+    }
+  }
+  return flat;
+}
+
+/**
+ * Files each detected construct as its own row.
+ *
+ * The analyser already reports what the student actually wrote, and it was
+ * being stored only inside the `feedback` JSON blob — true, but unqueryable.
+ * Broken out here, "how often has this student written a list comprehension
+ * correctly" becomes an indexed lookup instead of a scan over every blob.
+ */
+function recordConstructs(submissionId: number, input: SubmissionRecordInput): void {
+  const constructs = input.result.detectedConstructs ?? [];
+  if (constructs.length === 0) return;
+
+  const required = requiredConstructsFor(input.questionId);
+  const stmt = db().prepare(`
+    INSERT OR IGNORE INTO submission_constructs
+      (submission_id, user_id, question_id, construct, was_required, is_correct)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  for (const construct of new Set(constructs)) {
+    stmt.run(
+      submissionId,
+      input.userId,
+      input.questionId,
+      construct,
+      required.has(construct) ? 1 : 0,
+      input.result.isCorrect ? 1 : 0,
+    );
+  }
 }
 
 function updateProgress(input: SubmissionRecordInput, _attemptNumber: number): void {

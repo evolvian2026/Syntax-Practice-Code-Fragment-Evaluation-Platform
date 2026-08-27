@@ -413,3 +413,70 @@ CREATE TABLE IF NOT EXISTS schema_meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+-- ------------------------------------------------------ question health
+-- Every question's own reference solution, re-run through the real engine.
+-- A question whose reference solution fails is unanswerable by anyone, and
+-- nothing else in the platform would ever surface that.
+CREATE TABLE IF NOT EXISTS question_health (
+  question_id  INTEGER PRIMARY KEY REFERENCES questions(id) ON DELETE CASCADE,
+  status       TEXT NOT NULL CHECK (status IN ('healthy','failing','unverifiable')),
+  verdict      TEXT,
+  message      TEXT,
+  score        REAL,
+  max_score    REAL,
+  duration_ms  INTEGER NOT NULL DEFAULT 0,
+  checked_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_question_health_status ON question_health(status);
+
+-- --------------------------------------------------- construct mastery
+-- One row per construct the analyser found in a submitted fragment. The data
+-- already existed inside submissions.feedback; this makes it queryable.
+CREATE TABLE IF NOT EXISTS submission_constructs (
+  submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+  user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  question_id   INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+  construct     TEXT NOT NULL,
+  was_required  INTEGER NOT NULL DEFAULT 0,
+  is_correct    INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (submission_id, construct)
+);
+CREATE INDEX IF NOT EXISTS idx_submission_constructs_user ON submission_constructs(user_id, construct);
+CREATE INDEX IF NOT EXISTS idx_submission_constructs_construct ON submission_constructs(construct);
+
+-- ---------------------------------------------------- spaced repetition
+-- SM-2 scheduling over solved questions. Syntax decays fast and is cheap to
+-- re-test, which is close to the ideal case for spaced repetition.
+CREATE TABLE IF NOT EXISTS review_schedule (
+  user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  question_id    INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+  ease           REAL NOT NULL DEFAULT 2.5,
+  interval_days  INTEGER NOT NULL DEFAULT 1,
+  repetitions    INTEGER NOT NULL DEFAULT 0,
+  lapses         INTEGER NOT NULL DEFAULT 0,
+  due_at         TEXT NOT NULL,
+  last_review_at TEXT,
+  PRIMARY KEY (user_id, question_id)
+);
+CREATE INDEX IF NOT EXISTS idx_review_due ON review_schedule(user_id, due_at);
+
+-- ------------------------------------------------ misconception hints
+-- A hint attached to a *detected pattern* rather than a position in a list,
+-- so feedback can name the actual mistake the student made.
+CREATE TABLE IF NOT EXISTS question_misconceptions (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  question_id     INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+  label           TEXT NOT NULL,
+  hint            TEXT NOT NULL,
+  display_order   INTEGER NOT NULL DEFAULT 0,
+  -- match rules, all optional and ANDed together
+  construct_used  TEXT NOT NULL DEFAULT '[]',   -- JSON: constructs that must be present
+  construct_absent TEXT NOT NULL DEFAULT '[]',  -- JSON: constructs that must be absent
+  fragment_regex  TEXT,                         -- matched against the fragment
+  error_type      TEXT,                         -- restrict to one error type
+  verdict         TEXT,                         -- restrict to one verdict
+  times_matched   INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_misconceptions_question ON question_misconceptions(question_id);
