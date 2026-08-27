@@ -37,7 +37,7 @@ test.describe('question health', () => {
     await page.getByLabel('Expected output').first().fill('this is never printed');
 
     await page.getByRole('tab', { name: 'Hints & solution' }).click();
-    await page.getByPlaceholder(/reference solution/i).first().fill('for n in numbers:\n    print(n)');
+    await page.getByLabel('Reference solution code').fill('for n in numbers:\n    print(n)');
 
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: /Save question/ }).click();
@@ -97,7 +97,7 @@ test.describe('misconception hints', () => {
 
     // Find the loop question and attach a misconception to it.
     await page.goto('/admin/questions?search=Print every number');
-    await page.getByText('PY-LOOPS-0001').first().click();
+    await page.getByRole('link', { name: /Print every number/ }).first().click();
     await page.waitForURL(/\/admin\/questions\/\d+/);
 
     await page.getByRole('tab', { name: 'Misconceptions' }).click();
@@ -149,8 +149,9 @@ test.describe('deriving a question from a program', () => {
     );
 
     // Select lines 3-4 — the loop the student will write.
-    await page.getByRole('button', { name: /^3\s/ }).click();
-    await page.getByRole('button', { name: /^4\s/ }).click();
+    const lines = page.locator('button', { has: page.locator('span.w-8') });
+    await lines.nth(2).click();
+    await lines.nth(3).click();
     await expect(page.getByText('Student writes lines 3–4')).toBeVisible();
 
     await page.getByRole('button', { name: /Derive question/ }).click();

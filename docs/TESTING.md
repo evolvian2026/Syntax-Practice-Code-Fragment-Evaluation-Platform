@@ -19,6 +19,7 @@ execution sandbox.
 | `evaluation.test.ts` | Template assembly and re-indentation; correct fragments; syntax errors; correct-output-wrong-construct; hidden tests; runtime errors; infinite loops; restricted and required keywords; syntax equivalence; multiple valid solutions; AST-only grading; hint and solution scoring. |
 | `sql.test.ts`        | Clause detection (including keywords inside string literals); the read-only sandbox database; DDL/DML refusal; stacked statements; unknown-column messages; hidden tests seeding extra rows; JOIN grading; injection attempts and dataset integrity afterwards. |
 | `sandbox.test.ts`    | Python isolation (`os.system`, `subprocess`, sockets, files, infinite loops, sleeps, memory); AST construct detection, including a block header whose body lives in the template; JavaScript execution under Node's permission model; HTML/CSS parsing; C, C++ and Java compile-and-run. |
+| `features.test.ts`   | Question health (healthy, failing and unverifiable questions, the sweep, the HTTP surface); construct mastery and gaps; SM-2 grading, interval growth, lapses, the ease floor and the interval cap; misconception matching, inert rules and uncompilable regexes; deriving a question from a program, including dedenting and a program that will not run. |
 | `api.test.ts`        | The HTTP surface end to end: auth, the practice loop, hidden-test redaction, hints, XP and badges, submission history, dashboard, leaderboard, admin CRUD, validation, the import dry run (including that it rejects an unresolvable row without writing), duplicate, import/export, analytics, and the assessment lifecycle. |
 
 ## End to end — `e2e/`
@@ -30,6 +31,7 @@ server; `playwright.config.ts` waits for `/api/health` before the first test.
 
 | File               | Covers |
 | ------------------ | ------ |
+| `features.spec.ts` | The five layered features through the UI: a health sweep over the whole seeded bank, a rotten question reported on save, mastery recorded from a solve, a review scheduled and queued, an authored misconception reaching the student who makes that mistake, and deriving a question that a student then solves. |
 | `student.spec.ts`  | Sign-in and registration; browsing, filtering and search; the provided-code/editable-region layout; protected code being uneditable; Run vs Submit; wrong-construct rejection; syntax, runtime, timeout and restricted verdicts; hardcoded answers caught by hidden tests; the generated program; hints; explanations; solution reveal; Reset; Next; SQL with its schema browser and injection blocking; LEFT vs INNER JOIN; syntax equivalence; HTML, CSS, JavaScript and C questions; predict-output, fix-syntax and choose-and-write types; dashboard, learning path, leaderboard, history; theme toggle and tablet layout. |
 | `admin.spec.ts`    | Role separation; the overview; listing and filtering; verifying a reference solution; **authoring a question through the builder and then solving it as a student**; duplicate; template validation; delete; import validation and import; export; composing an assessment and taking it; the student roster; creating an account that can then sign in; analytics. |
 

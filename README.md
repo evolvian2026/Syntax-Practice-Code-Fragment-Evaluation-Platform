@@ -46,7 +46,7 @@ a toolchain is missing.
 ```bash
 npm run build     # production build (server + client)
 npm start         # serve API and the built UI from one process on :4000
-npm test          # 119 unit and integration tests
+npm test          # 169 unit and integration tests
 npm run test:e2e  # browser tests driving the real application
 npm run test:all  # both
 ```
@@ -101,6 +101,19 @@ comment-and-string-stripped copy, with the compiler proving syntax validity.
 
 ---
 
+## Keeping the question bank honest
+
+A question whose own reference solution no longer passes is unanswerable by
+anybody — and to a student it looks identical to a hard one. **Admin → Health**
+re-runs every published question's reference solution through the real engine
+and reports what broke. Saving a question does the same and says so.
+
+Run it after any change to the engine, an adapter or the sandbox: that is when
+questions silently rot. Its first run against the seeded bank found eight
+broken questions.
+
+---
+
 ## Safety
 
 Student code never runs in the API process.
@@ -132,14 +145,17 @@ platform falls back to the subprocess driver when no daemon is available.
 editable region, Run/Submit/Reset/Hint/Solution, public + hidden test results,
 generated-program view, SQL schema browser, progressive hints, explanations and
 alternative solutions, dashboard (accuracy by language/topic/difficulty, weak
-topics, error breakdown, activity chart), learning path with unlocking,
-assessments, submission history, XP/levels/streaks/badges/leaderboard/daily
-challenge.
+topics, error breakdown, activity chart), **construct-level mastery with the
+gaps named**, **a spaced-repetition review queue**, learning path with
+unlocking, assessments, submission history,
+XP/levels/streaks/badges/leaderboard/daily challenge.
 
 **Admin** — question CRUD, duplicate, verify-reference-solution, visual question
 builder with a live student preview and a dry-run against the real engine,
+**derive a question from a working program**, **misconception-tagged hints**,
 bulk import/export, assessment composer with results, student roster with
-drill-down, and analytics (hardest questions, weak concepts, common errors).
+drill-down, **question-health sweeps**, and analytics (hardest questions, weak
+concepts, construct accuracy, common errors, which misconceptions fire).
 
 **AI (optional)** — set `ANTHROPIC_API_KEY` to enable progressive tutoring
 (never reveals the answer), error explanations, practice recommendations and

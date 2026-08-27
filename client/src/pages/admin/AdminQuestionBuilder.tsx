@@ -98,6 +98,9 @@ export function AdminQuestionBuilder({ theme }: { theme: 'dark' | 'light' }) {
   const [misconceptionsSaving, setMisconceptionsSaving] = useState(false);
   const [program, setProgram] = useState('');
   const [range, setRange] = useState({ start: 1, end: 1 });
+  // Clicks alternate: one starts a range, the next closes it. Without this the
+  // first click extends from wherever the previous range began.
+  const [rangeOpen, setRangeOpen] = useState(true);
   const [deriving, setDeriving] = useState(false);
   const [derived, setDerived] = useState<DeriveResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -405,7 +408,9 @@ export function AdminQuestionBuilder({ theme }: { theme: 'dark' | 'light' }) {
               {program.trim() !== '' && (
                 <div className="rounded-lg border border-slate-200 dark:border-ink-800">
                   <p className="border-b border-slate-200 px-3 py-1.5 text-xs text-slate-500 dark:border-ink-800 dark:text-slate-400">
-                    Click a line to set the start, then click another to set the end.
+                    {rangeOpen
+                      ? 'Click the first line the student should write.'
+                      : 'Now click the last line — or the same line again for a single line.'}
                   </p>
                   <div className="max-h-64 overflow-y-auto p-2 font-mono text-[13px]">
                     {program.split('\n').map((line, index) => {
@@ -415,9 +420,16 @@ export function AdminQuestionBuilder({ theme }: { theme: 'dark' | 'light' }) {
                         <button
                           key={number}
                           type="button"
-                          onClick={() => setRange((r) => (
-                            number < r.start || r.start !== r.end ? { start: number, end: number } : { start: r.start, end: number }
-                          ))}
+                          onClick={() => {
+                            if (rangeOpen) {
+                              setRange({ start: number, end: number });
+                            } else {
+                              setRange((r) => (number >= r.start
+                                ? { start: r.start, end: number }
+                                : { start: number, end: r.start }));
+                            }
+                            setRangeOpen((open) => !open);
+                          }}
                           className={`flex w-full gap-3 rounded px-2 text-left ${selected ? 'bg-brand-500/15' : 'hover:bg-slate-100 dark:hover:bg-ink-850'}`}
                         >
                           <span className="w-8 shrink-0 select-none text-right text-slate-400">{number}</span>
@@ -803,21 +815,26 @@ export function AdminQuestionBuilder({ theme }: { theme: 'dark' | 'light' }) {
                 {draft.solutions.map((sol, i) => (
                   <div key={i} className="mb-2 space-y-1">
                     <div className="flex gap-2">
-                      <input
-                        className="input max-w-[220px]" placeholder="Note" value={sol.note}
-                        onChange={(e) => setDraft((d) => ({ ...d, solutions: d.solutions.map((s, j) => (j === i ? { ...s, note: e.target.value } : s)) }))}
-                      />
+                      <Field label={i === 0 ? 'Reference solution note' : 'Alternative solution note'} className="max-w-[220px] flex-1">
+                        <input
+                          className="input" placeholder="Note" value={sol.note}
+                          onChange={(e) => setDraft((d) => ({ ...d, solutions: d.solutions.map((s, j) => (j === i ? { ...s, note: e.target.value } : s)) }))}
+                        />
+                      </Field>
                       <button
-                        className="btn-ghost !px-2 text-rose-600 dark:text-rose-400"
+                        className="btn-ghost mt-6 !px-2 text-rose-600 dark:text-rose-400"
                         onClick={() => setDraft((d) => ({ ...d, solutions: d.solutions.filter((_, j) => j !== i) }))}
+                        aria-label={`Remove solution ${i + 1}`}
                       >
                         ✕
                       </button>
                     </div>
-                    <textarea
-                      className="input min-h-[80px] font-mono text-[13px]" value={sol.code} spellCheck={false}
-                      onChange={(e) => setDraft((d) => ({ ...d, solutions: d.solutions.map((s, j) => (j === i ? { ...s, code: e.target.value } : s)) }))}
-                    />
+                    <Field label={i === 0 ? 'Reference solution code' : `Alternative solution ${i} code`}>
+                      <textarea
+                        className="input min-h-[80px] font-mono text-[13px]" value={sol.code} spellCheck={false}
+                        onChange={(e) => setDraft((d) => ({ ...d, solutions: d.solutions.map((s, j) => (j === i ? { ...s, code: e.target.value } : s)) }))}
+                      />
+                    </Field>
                   </div>
                 ))}
                 <button

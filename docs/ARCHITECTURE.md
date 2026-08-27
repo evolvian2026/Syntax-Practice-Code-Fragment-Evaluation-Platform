@@ -118,6 +118,28 @@ stand-in out of the reported constructs. A header that is genuinely broken
 raises `SyntaxError` rather than `IndentationError` and is reported unchanged,
 so `for n in numbers` still yields "expected ':'".
 
+## Judging a fragment in its template
+
+Some fragments mean nothing alone. `append(4)` is a plain call until the
+template puts `numbers.` in front of it; `finally:` is invalid without the
+`try` above it; `name, salary` contains no SELECT because SELECT is in the
+template. So the engine analyses the assembled program as well:
+
+- **Syntax** fails only when neither the fragment nor the assembled program
+  parses.
+- **A required construct** may be satisfied anywhere in the program. A
+  requirement the template already guarantees is vacuous, not failed.
+- **Attribution** — what the student personally wrote, which is what mastery
+  records — subtracts a baseline analysis of the same template with a neutral
+  stand-in fragment. Without a trustworthy baseline nothing is subtracted,
+  which errs toward crediting the student with less rather than more.
+- **Forbidden constructs** stay fragment-only: a construct in the template is
+  not the student's doing.
+
+This does not soften §12. A required construct absent from the whole program is
+still `WRONG_CONSTRUCT` at zero, and the wrong method in the same slot is still
+rejected.
+
 ## Scoring
 
 - Correct: `maxScore`, reduced 15% per hint (capped at 60%), zero if the
@@ -150,3 +172,41 @@ network.
 | an evaluation type | new branch in `engine.ts` `gradeByType` + a `types.ts` union entry |
 | a badge            | a row in `badges` (criteria types live in `gamification.ts`)       |
 | a SQL dataset      | a row in `sql_datasets`                                           |
+
+## Question health
+
+`services/questionHealth.ts` re-runs every published question's own reference
+solution through the real engine and stores the verdict in `question_health`.
+A question whose solution fails is unanswerable by anyone, and nothing else
+surfaces that — its pass rate of zero looks like difficulty. Saving a question
+records its health; `POST /admin/questions-health/sweep` does the whole bank.
+
+## Construct mastery and review
+
+`submission_constructs` records the constructs attributed to the student on
+each submission — the same data that used to exist only inside the
+`submissions.feedback` blob, now indexed. `services/mastery.ts` reads accuracy
+per construct and names the constructs the bank teaches that a student has
+never got right.
+
+`services/review.ts` schedules solved questions with SM-2. A lapse collapses
+the interval to a day but only decays the ease, so one slip does not erase a
+long record; intervals cap at a year and ease at 1.3. Assessments never
+schedule reviews — an assessment is a measurement, not a study session.
+
+## Misconception hints
+
+`question_misconceptions` attaches a hint to a *detected pattern* rather than a
+position in a list: constructs present, constructs absent, a regex over the
+fragment, a verdict, an error type. Rules are ANDed, the first match wins, and
+a rule with no criteria is inert rather than universal. An uncompilable regex
+is rejected when authored and guarded when matched.
+
+## Deriving a question
+
+`services/deriveQuestion.ts` turns a working program plus a line range into a
+template, a reference solution, required constructs and expected output. The
+expectation comes from executing the program through the same adapter a
+submission uses, so it cannot disagree with what the platform will compare
+against. Only structural constructs are required by default — requiring every
+detected one would reject reasonable variations.
