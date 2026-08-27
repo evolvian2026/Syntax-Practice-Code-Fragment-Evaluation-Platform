@@ -187,3 +187,29 @@ describe('SQL fragment grading', () => {
     expect(inner.verdict).toBe('WRONG_CONSTRUCT');
   });
 });
+
+describe('cross-language constructs in SQL', () => {
+  it('detects a comparison', () => {
+    expect(detectSqlConstructs('SELECT name FROM Employees WHERE salary > 50000'))
+      .toContain('COMPARISON');
+    expect(detectSqlConstructs('SELECT name FROM Employees WHERE id = 1'))
+      .toContain('COMPARISON');
+  });
+
+  it('detects a boolean operator', () => {
+    expect(detectSqlConstructs('SELECT name FROM Employees WHERE a > 1 AND b < 2'))
+      .toContain('BOOLEAN_OPERATOR');
+  });
+
+  it('does not see a comparison in a query that has none', () => {
+    expect(detectSqlConstructs('SELECT name FROM Employees')).not.toContain('COMPARISON');
+  });
+
+  it('is not fooled by an operator inside a string literal', () => {
+    const constructs = detectSqlConstructs("SELECT name FROM Employees WHERE note = 'a > b'");
+    // The `=` is real, but the `>` inside the literal must not add anything of
+    // its own — string contents are stripped before matching.
+    expect(constructs).toContain('COMPARISON');
+    expect(detectSqlConstructs("SELECT 'a > b' AS note FROM Employees")).not.toContain('COMPARISON');
+  });
+});

@@ -5,7 +5,7 @@ import { getAdapter, UnsupportedLanguageError } from './languages/registry.js';
 import { describeConstruct } from './constructs.js';
 import type {
   AnalysisResult, EvaluableQuestion, EvaluationRequest, EvaluationResult,
-  ExecutionOutcome, StageResult, TestCaseSpec, TestOutcome, Verdict,
+  ExecutionOutcome, LanguageAdapter, StageResult, TestCaseSpec, TestOutcome, Verdict,
 } from './types.js';
 
 /**
@@ -14,7 +14,7 @@ import type {
  * Pipeline, short-circuiting on the first hard failure:
  *
  *   guard      restrictions, length, required/forbidden keywords
- *   syntax     does the fragment parse at all?
+ *   syntax     does the fragment parse — alone, or at least in its template?
  *   construct  did the student use the construct the question is teaching?
  *   execution  assemble the full program and run it in the sandbox
  *   tests      public + hidden test cases
@@ -64,17 +64,29 @@ export async function evaluate(request: EvaluationRequest): Promise<EvaluationRe
   base.generatedCode = assembled.program;
 
   // ------------------------------------------------- 3. fragment syntax
-  const analysis = await adapter.analyzeFragment(fragment, question);
-  if (!analysis.ok) {
+  // A fragment is written to sit inside its template, so it is judged both on
+  // its own and in place. `append(4)` under `numbers.` and `finally:` under a
+  // `try` are correct answers that do not stand up alone.
+  const context = await analyseInContext(adapter, question, fragment, assembled.program);
+  const analysis = context.fragment;
+
+  if (!analysis.ok && !context.programParses) {
     const message = formatSyntaxError(analysis);
     stages.push({ stage: 'syntax', passed: false, title: 'Syntax', message, details: analysis.error ?? undefined });
     return fail(base, stages, 'SYNTAX_ERROR', 'syntax', message, message);
   }
-  stages.push({ stage: 'syntax', passed: true, title: 'Syntax', message: 'Your fragment parses correctly.' });
-  base.detectedConstructs = analysis.constructs;
+  stages.push({
+    stage: 'syntax',
+    passed: true,
+    title: 'Syntax',
+    message: analysis.ok
+      ? 'Your fragment parses correctly.'
+      : 'Your fragment parses correctly in place.',
+  });
+  base.detectedConstructs = context.attributed;
 
   // --------------------------------------------- 4. required constructs
-  const constructCheck = checkConstructs(analysis.constructs, question);
+  const constructCheck = checkConstructs(context.attributed, question, context.available);
   stages.push(constructCheck.stage);
   base.missingConstructs = constructCheck.missing;
   base.usedForbiddenConstructs = constructCheck.forbidden;
@@ -110,9 +122,118 @@ interface ConstructCheck {
   stage: StageResult;
 }
 
-function checkConstructs(detected: string[], question: EvaluableQuestion): ConstructCheck {
+/**
+ * What the student's fragment contributes, judged in place.
+ *
+ * Some fragments only mean anything inside their template: `append(4)` is a
+ * method call only because `numbers.` precedes it, and `finally:` needs the
+ * `try` above it to be valid at all. Judging the fragment alone made eight
+ * seeded questions unanswerable by anybody, including their own reference
+ * solutions.
+ *
+ * So the assembled program is analysed too, and the template's own contribution
+ * is subtracted by re-analysing the program with a neutral fragment in the same
+ * slot. What is left is the student's, which is what mastery should record and
+ * what a forbidden-construct rule should judge. Anything the template
+ * guarantees can still *satisfy* a requirement — a requirement the template
+ * already meets is vacuous, not failed.
+ */
+interface ContextAnalysis {
+  fragment: AnalysisResult;
+  /** True when the assembled program parses, even if the fragment alone does not. */
+  programParses: boolean;
+  /** Constructs attributable to the student. */
+  attributed: string[];
+  /** Constructs that may satisfy a requirement, including template-guaranteed ones. */
+  available: Set<string>;
+}
+
+/**
+ * Stand-ins tried in the fragment's slot when measuring the template alone.
+ * The first that parses wins; they are ordered so an expression slot resolves
+ * before a statement slot.
+ */
+const NEUTRAL_FRAGMENTS = ['0', '_', 'pass', '1', ';'];
+
+async function analyseInContext(
+  adapter: LanguageAdapter,
+  question: EvaluableQuestion,
+  fragment: string,
+  program: string,
+): Promise<ContextAnalysis> {
+  const fragmentAnalysis = await adapter.analyzeFragment(fragment, question);
+  const fragmentConstructs = fragmentAnalysis.ok ? fragmentAnalysis.constructs : [];
+
+  if (!adapter.analyzeProgram) {
+    return {
+      fragment: fragmentAnalysis,
+      programParses: false,
+      attributed: fragmentConstructs,
+      available: new Set(fragmentConstructs),
+    };
+  }
+
+  const programAnalysis = await adapter.analyzeProgram(program, question).catch(() => null);
+  if (!programAnalysis?.ok) {
+    return {
+      fragment: fragmentAnalysis,
+      programParses: false,
+      attributed: fragmentConstructs,
+      available: new Set(fragmentConstructs),
+    };
+  }
+
+  const baseline = await templateBaseline(adapter, question);
+  const attributed = new Set(fragmentConstructs);
+  if (baseline) {
+    // Present with the student's fragment but not without it: theirs.
+    for (const construct of programAnalysis.constructs) {
+      if (!baseline.has(construct)) attributed.add(construct);
+    }
+  }
+
+  return {
+    fragment: fragmentAnalysis,
+    programParses: true,
+    attributed: [...attributed].sort(),
+    available: new Set([...attributed, ...programAnalysis.constructs]),
+  };
+}
+
+/**
+ * The constructs the template contributes on its own, or null when no neutral
+ * stand-in produces a program that parses. Null is the safe answer: without a
+ * baseline nothing is subtracted, so the template's constructs are never
+ * credited to the student.
+ */
+async function templateBaseline(
+  adapter: LanguageAdapter,
+  question: EvaluableQuestion,
+): Promise<Set<string> | null> {
+  if (!adapter.analyzeProgram) return null;
+
+  for (const stand of NEUTRAL_FRAGMENTS) {
+    let assembled;
+    try {
+      assembled = assemble(question, stand, adapter.setupIsData ? null : question.testCases[0] ?? null);
+    } catch {
+      return null;
+    }
+    const analysis = await adapter.analyzeProgram(assembled.program, question).catch(() => null);
+    if (analysis?.ok) return new Set(analysis.constructs);
+  }
+  return null;
+}
+
+function checkConstructs(
+  detected: string[],
+  question: EvaluableQuestion,
+  available: Set<string> = new Set(detected),
+): ConstructCheck {
   const present = new Set(detected);
-  const missing = (question.requiredConstructs ?? []).filter((c) => !satisfies(present, c));
+  // A requirement may be met anywhere in the assembled program; a *forbidden*
+  // construct is only the student's fault if they wrote it themselves.
+  const missing = (question.requiredConstructs ?? []).filter((c) => !satisfies(available, c));
   const forbidden = (question.forbiddenConstructs ?? []).filter((c) => satisfies(present, c));
   const passed = missing.length === 0 && forbidden.length === 0;
 

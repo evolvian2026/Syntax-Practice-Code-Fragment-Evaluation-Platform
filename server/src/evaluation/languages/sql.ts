@@ -47,6 +47,11 @@ const CLAUSE_PATTERNS: Array<{ construct: string; test: RegExp }> = [
   { construct: 'ASC', test: /\basc\b/i },
   { construct: 'CASE', test: /\bcase\b/i },
   { construct: 'SELF_JOIN', test: /\bjoin\s+(\w+)\s+(\w+)\s+on\b[\s\S]*\b\1\b/i },
+  // Part of the shared cross-language vocabulary, so questions can require a
+  // comparison or a boolean operator in SQL exactly as they do in Python.
+  // Safe against literals because string contents are stripped first.
+  { construct: 'COMPARISON', test: /(?:<=|>=|<>|!=|<|>|=)/ },
+  { construct: 'BOOLEAN_OPERATOR', test: /\b(?:and|or|not)\b/i },
 ];
 
 const MAX_RESULT_ROWS = 5000;

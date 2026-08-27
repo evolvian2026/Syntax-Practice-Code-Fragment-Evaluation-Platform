@@ -306,3 +306,86 @@ describe('scoring', () => {
     expect(result.score).toBe(0);
   });
 });
+
+describe('fragments that only make sense in their template', () => {
+  const appendQuestion = (overrides = {}) => question({
+    starterCode: 'numbers = [1, 2, 3]\n\nnumbers.{{STUDENT_CODE}}\n\nprint(numbers)',
+    requiredConstructs: ['METHOD:append'],
+    testCases: [{ visibility: 'public', matcher: 'trimmed', weight: 1, expectedOutput: '[1, 2, 3, 4]' }],
+    ...overrides,
+  });
+
+  it('credits a method call the template completes', async () => {
+    // `append(4)` alone is a plain function call; it only becomes a method
+    // call because the template puts `numbers.` in front of it.
+    const result = await evaluate({ question: appendQuestion(), fragment: 'append(4)', mode: 'submit' });
+    expect(result.verdict).toBe('CORRECT');
+    expect(result.detectedConstructs).toContain('METHOD:append');
+  });
+
+  it('still rejects the wrong method in the same slot', async () => {
+    // The loophole to avoid: judging in context must not make every answer pass.
+    const result = await evaluate({
+      question: appendQuestion({
+        testCases: [{ visibility: 'public', matcher: 'trimmed', weight: 1, expectedOutput: '[1, 2, 3, 4]' }],
+      }),
+      fragment: 'extend([4])',
+      mode: 'submit',
+    });
+    expect(result.verdict).toBe('WRONG_CONSTRUCT');
+    expect(result.missingConstructs).toContain('METHOD:append');
+  });
+
+  it('accepts a clause that needs the block above it', async () => {
+    const result = await evaluate({
+      question: question({
+        starterCode: 'value = "x"\n\ntry:\n    number = int(value)\nexcept ValueError:\n    print("Not a number")\n{{STUDENT_CODE}}',
+        requiredConstructs: ['FINALLY'],
+        testCases: [{ visibility: 'public', matcher: 'trimmed', weight: 1, expectedOutput: 'Not a number\nDone' }],
+      }),
+      fragment: 'finally:\n    print("Done")',
+      mode: 'submit',
+    });
+    expect(result.verdict).toBe('CORRECT');
+  });
+
+  it('does not credit the student with what the template already contained', async () => {
+    // The template owns the loop; the student writes only the print. Mastery
+    // must not record a for loop they never wrote.
+    const result = await evaluate({
+      question: question({
+        starterCode: 'numbers = [1, 2, 3]\n\nfor n in numbers:\n    {{STUDENT_CODE}}',
+        requiredConstructs: [],
+        testCases: [{ visibility: 'public', matcher: 'trimmed', weight: 1, expectedOutput: '1\n2\n3' }],
+      }),
+      fragment: 'print(n)',
+      mode: 'submit',
+    });
+    expect(result.verdict).toBe('CORRECT');
+    expect(result.detectedConstructs).not.toContain('FOR_LOOP');
+  });
+
+  it('does not blame the student for a forbidden construct in the template', async () => {
+    const result = await evaluate({
+      question: question({
+        starterCode: 'numbers = [1, 2, 3]\n\nfor n in numbers:\n    {{STUDENT_CODE}}',
+        forbiddenConstructs: ['FOR_LOOP'],
+        testCases: [{ visibility: 'public', matcher: 'trimmed', weight: 1, expectedOutput: '1\n2\n3' }],
+      }),
+      fragment: 'print(n)',
+      mode: 'submit',
+    });
+    expect(result.usedForbiddenConstructs).not.toContain('FOR_LOOP');
+    expect(result.verdict).toBe('CORRECT');
+  });
+
+  it('keeps the §12 rule when the template offers no shortcut', async () => {
+    const result = await evaluate({
+      question: question({ requiredConstructs: ['FOR_LOOP'] }),
+      fragment: 'print(*numbers, sep="\\n")',
+      mode: 'submit',
+    });
+    expect(result.verdict).toBe('WRONG_CONSTRUCT');
+    expect(result.score).toBe(0);
+  });
+});

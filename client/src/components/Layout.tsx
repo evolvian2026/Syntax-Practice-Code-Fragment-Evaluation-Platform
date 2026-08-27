@@ -26,6 +26,7 @@ export function Layout({ theme, onToggleTheme }: Props) {
     { to: '/learning-path', label: 'Learning path' },
     { to: '/assessments', label: 'Assessments' },
     { to: '/progress', label: 'Progress' },
+    { to: '/mastery', label: 'Mastery' },
     { to: '/leaderboard', label: 'Leaderboard' },
   ];
 

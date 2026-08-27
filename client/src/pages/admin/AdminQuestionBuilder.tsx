@@ -2,7 +2,10 @@ import { cloneElement, isValidElement, useCallback, useEffect, useId, useMemo, u
 import { useNavigate, useParams } from 'react-router-dom';
 import { FragmentEditor } from '../../components/FragmentEditor';
 import { CodeBlock, ErrorNote, Spinner, Tabs, VerdictBadge } from '../../components/ui';
-import { ApiError, api, type CatalogLanguage, type EvaluationResult } from '../../lib/api';
+import {
+  ApiError, api,
+  type CatalogLanguage, type DeriveResult, type EvaluationResult, type MisconceptionRule,
+} from '../../lib/api';
 
 /**
  * §20 — the visual question builder.
@@ -87,7 +90,16 @@ export function AdminQuestionBuilder({ theme }: { theme: 'dark' | 'light' }) {
   const [languages, setLanguages] = useState<CatalogLanguage[]>([]);
   const [datasets, setDatasets] = useState<Array<{ slug: string; name: string }>>([]);
   const [constructGroups, setConstructGroups] = useState<Array<{ group: string; constructs: string[] }>>([]);
-  const [tab, setTab] = useState<'content' | 'template' | 'grading' | 'tests' | 'help' | 'preview'>('content');
+  const [tab, setTab] = useState<
+    'content' | 'derive' | 'template' | 'grading' | 'tests' | 'help' | 'misconceptions' | 'preview'
+  >('content');
+  const [health, setHealth] = useState<{ status: string; message: string; blocksPublication: boolean } | null>(null);
+  const [misconceptions, setMisconceptions] = useState<MisconceptionRule[]>([]);
+  const [misconceptionsSaving, setMisconceptionsSaving] = useState(false);
+  const [program, setProgram] = useState('');
+  const [range, setRange] = useState({ start: 1, end: 1 });
+  const [deriving, setDeriving] = useState(false);
+  const [derived, setDerived] = useState<DeriveResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [issues, setIssues] = useState<Array<{ path: string; message: string }>>([]);
   const [saving, setSaving] = useState(false);
@@ -111,6 +123,10 @@ export function AdminQuestionBuilder({ theme }: { theme: 'dark' | 'light' }) {
         setLoaded(true);
       })
       .catch((err) => { setError(err.message); setLoaded(true); });
+
+    api.get<{ misconceptions: MisconceptionRule[] }>(`/admin/questions/${id}/misconceptions`)
+      .then((r) => setMisconceptions(r.misconceptions))
+      .catch(() => {});
   }, [id]);
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((d) => ({ ...d, [key]: value }));
@@ -126,12 +142,23 @@ export function AdminQuestionBuilder({ theme }: { theme: 'dark' | 'light' }) {
     setError(null);
     setIssues([]);
     try {
+      type SaveResponse = {
+        id: number; qid: string;
+        health?: { status: string; message: string; blocksPublication: boolean };
+      };
       const res = id
-        ? await api.put<{ id: number; qid: string }>(`/admin/questions/${id}`, payload)
-        : await api.post<{ id: number; qid: string }>('/admin/questions', payload);
+        ? await api.put<SaveResponse>(`/admin/questions/${id}`, payload)
+        : await api.post<SaveResponse>('/admin/questions', payload);
       navigate(`/admin/questions/${res.id}`, { replace: true });
       setError(null);
-      window.alert(`Saved ${res.qid}.`);
+      setHealth(res.health ?? null);
+      // Saying only "Saved" would hide the one thing worth knowing: whether the
+      // question can actually be answered.
+      window.alert(
+        res.health && res.health.status !== 'healthy'
+          ? `Saved ${res.qid}, but its reference solution does not pass.\n\n${res.health.message}`
+          : `Saved ${res.qid}.`,
+      );
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -160,6 +187,68 @@ export function AdminQuestionBuilder({ theme }: { theme: 'dark' | 'light' }) {
       else setError((err as Error).message);
     } finally {
       setTesting(false);
+    }
+  };
+
+  /**
+   * Derives the template, solution, constructs and expected output from a
+   * program that already works, so none of it has to be retyped.
+   */
+  const derive = async () => {
+    setDeriving(true);
+    setError(null);
+    setDerived(null);
+    try {
+      const res = await api.post<DeriveResult>('/admin/questions/derive', {
+        language: draft.language,
+        program,
+        startLine: range.start,
+        endLine: range.end,
+        dataset: draft.dataset || null,
+      });
+      setDerived(res);
+    } catch (err) {
+      if (err instanceof ApiError) { setError(err.message); setIssues(err.issues ?? []); }
+      else setError((err as Error).message);
+    } finally {
+      setDeriving(false);
+    }
+  };
+
+  /** Copies a derivation into the draft. Kept explicit so nothing is overwritten silently. */
+  const applyDerived = () => {
+    if (!derived) return;
+    setDraft((d) => ({
+      ...d,
+      starterCode: derived.starterCode,
+      requiredConstructs: derived.requiredConstructs,
+      solutions: [{ code: derived.solution, note: 'Reference solution', isPrimary: true }],
+      testCases: derived.expectedOutput === null
+        ? d.testCases
+        : [{
+          visibility: 'public', name: 'Example', setupCode: '', stdin: '',
+          expectedOutput: derived.expectedOutput, matcher: 'trimmed', weight: 1,
+        }],
+    }));
+    setTestCode(derived.solution);
+    setTab('template');
+  };
+
+  const saveMisconceptions = async () => {
+    if (!id) return;
+    setMisconceptionsSaving(true);
+    setError(null);
+    try {
+      const res = await api.put<{ misconceptions: MisconceptionRule[] }>(
+        `/admin/questions/${id}/misconceptions`,
+        { misconceptions },
+      );
+      setMisconceptions(res.misconceptions);
+    } catch (err) {
+      if (err instanceof ApiError) { setError(err.message); setIssues(err.issues ?? []); }
+      else setError((err as Error).message);
+    } finally {
+      setMisconceptionsSaving(false);
     }
   };
 
@@ -195,6 +284,21 @@ export function AdminQuestionBuilder({ theme }: { theme: 'dark' | 'light' }) {
         </ul>
       )}
 
+      {health && (
+        <div
+          className={`rounded-lg border p-3 text-sm ${health.status === 'healthy'
+            ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300'
+            : 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300'}`}
+        >
+          {health.message}
+          {health.blocksPublication && (
+            <strong className="block">
+              This question is published, so students can open a question nobody can answer.
+            </strong>
+          )}
+        </div>
+      )}
+
       <div className="card">
         <div className="px-3 pt-1">
           <Tabs
@@ -202,10 +306,12 @@ export function AdminQuestionBuilder({ theme }: { theme: 'dark' | 'light' }) {
             onChange={(id) => setTab(id)}
             tabs={[
               { id: 'content', label: 'Content' },
+              { id: 'derive', label: 'From a program' },
               { id: 'template', label: 'Code template' },
               { id: 'grading', label: 'Grading rules' },
               { id: 'tests', label: 'Test cases', badge: draft.testCases.length },
               { id: 'help', label: 'Hints & solution', badge: draft.hints.length },
+              { id: 'misconceptions', label: 'Misconceptions', badge: misconceptions.length },
               { id: 'preview', label: 'Preview & test' },
             ]}
           />
@@ -271,6 +377,238 @@ export function AdminQuestionBuilder({ theme }: { theme: 'dark' | 'light' }) {
               <Field label="Tags (comma separated)" className="lg:col-span-2">
                 <input className="input" value={draft.tags.join(', ')} onChange={(e) => set('tags', splitList(e.target.value))} />
               </Field>
+            </div>
+          )}
+
+          {tab === 'derive' && (
+            <div className="space-y-3 p-4">
+              <div>
+                <h3 className="font-medium">Start from a program that already works</h3>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Paste a complete program and say which lines the student should write. The
+                  template, the reference solution, the required constructs and the expected output
+                  are all derived from it — the expected output by actually running the program, so
+                  it cannot disagree with what the platform will compare against.
+                </p>
+              </div>
+
+              <Field label="Complete, working program">
+                <textarea
+                  className="input min-h-[220px] font-mono text-[13px]"
+                  value={program}
+                  onChange={(e) => setProgram(e.target.value)}
+                  spellCheck={false}
+                  placeholder={'numbers = [1, 2, 3]\n\nfor n in numbers:\n    print(n)\n\nprint("Done")'}
+                />
+              </Field>
+
+              {program.trim() !== '' && (
+                <div className="rounded-lg border border-slate-200 dark:border-ink-800">
+                  <p className="border-b border-slate-200 px-3 py-1.5 text-xs text-slate-500 dark:border-ink-800 dark:text-slate-400">
+                    Click a line to set the start, then click another to set the end.
+                  </p>
+                  <div className="max-h-64 overflow-y-auto p-2 font-mono text-[13px]">
+                    {program.split('\n').map((line, index) => {
+                      const number = index + 1;
+                      const selected = number >= range.start && number <= range.end;
+                      return (
+                        <button
+                          key={number}
+                          type="button"
+                          onClick={() => setRange((r) => (
+                            number < r.start || r.start !== r.end ? { start: number, end: number } : { start: r.start, end: number }
+                          ))}
+                          className={`flex w-full gap-3 rounded px-2 text-left ${selected ? 'bg-brand-500/15' : 'hover:bg-slate-100 dark:hover:bg-ink-850'}`}
+                        >
+                          <span className="w-8 shrink-0 select-none text-right text-slate-400">{number}</span>
+                          <span className="whitespace-pre">{line || ' '}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  Student writes lines {range.start}–{range.end}
+                </span>
+                <button
+                  className="btn-primary ml-auto"
+                  onClick={derive}
+                  disabled={deriving || program.trim() === ''}
+                >
+                  {deriving ? 'Running the program…' : 'Derive question'}
+                </button>
+              </div>
+
+              {derived && (
+                <div className="space-y-3 rounded-lg border border-slate-200 p-3 dark:border-ink-800">
+                  {derived.warnings.map((warning) => (
+                    <p key={warning} className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                      {warning}
+                    </p>
+                  ))}
+
+                  <div className="grid gap-3 lg:grid-cols-2">
+                    <div>
+                      <p className="label">Template</p>
+                      <CodeBlock code={derived.starterCode} />
+                    </div>
+                    <div>
+                      <p className="label">Reference solution</p>
+                      <CodeBlock code={derived.solution} />
+                    </div>
+                    <div>
+                      <p className="label">Required constructs</p>
+                      <div className="flex flex-wrap gap-1">
+                        {derived.requiredConstructs.length === 0
+                          ? <span className="text-sm text-slate-400">None detected</span>
+                          : derived.requiredConstructs.map((c) => (
+                            <span key={c} className="chip bg-brand-500/15 text-brand-700 dark:text-brand-300">{c}</span>
+                          ))}
+                      </div>
+                      {derived.detectedConstructs.length > derived.requiredConstructs.length && (
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          Also detected, left out so the question does not reject reasonable
+                          variations: {derived.detectedConstructs
+                            .filter((c) => !derived.requiredConstructs.includes(c))
+                            .join(', ')}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="label">Expected output</p>
+                      {derived.expectedOutput === null
+                        ? <p className="text-sm text-rose-600 dark:text-rose-400">{derived.executionError}</p>
+                        : <CodeBlock code={derived.expectedOutput} />}
+                    </div>
+                  </div>
+
+                  <button className="btn-primary" onClick={applyDerived}>Use this</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {tab === 'misconceptions' && (
+            <div className="space-y-3 p-4">
+              <div>
+                <h3 className="font-medium">Hints aimed at a specific mistake</h3>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  An ordinary hint is the same for everyone. These fire only when the answer
+                  matches the pattern you describe, so a student who indexes with{' '}
+                  <code className="font-mono">range(len(...))</code> gets told about iterating
+                  directly, while one who forgot a colon does not. Every rule you fill in must hold;
+                  a rule with no rules at all never fires.
+                </p>
+              </div>
+
+              {!id && (
+                <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                  Save the question first — misconceptions attach to a saved question.
+                </p>
+              )}
+
+              {misconceptions.map((rule, index) => (
+                <div key={index} className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-ink-800">
+                  <div className="flex gap-2">
+                    <Field label="What the student did" className="flex-1">
+                      <input
+                        className="input"
+                        value={rule.label}
+                        onChange={(e) => updateMisconception(setMisconceptions, index, { label: e.target.value })}
+                      />
+                    </Field>
+                    <button
+                      className="btn-ghost mt-6 h-9 text-rose-600"
+                      onClick={() => setMisconceptions((m) => m.filter((_, i) => i !== index))}
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  <Field label="Hint shown when it matches">
+                    <textarea
+                      className="input min-h-[60px]"
+                      value={rule.hint}
+                      onChange={(e) => updateMisconception(setMisconceptions, index, { hint: e.target.value })}
+                    />
+                  </Field>
+
+                  <div className="grid gap-2 lg:grid-cols-2">
+                    <Field label="Constructs the answer must contain (comma separated)">
+                      <input
+                        className="input font-mono text-xs"
+                        value={rule.constructUsed.join(', ')}
+                        onChange={(e) => updateMisconception(setMisconceptions, index, { constructUsed: splitList(e.target.value) })}
+                      />
+                    </Field>
+                    <Field label="Constructs the answer must NOT contain">
+                      <input
+                        className="input font-mono text-xs"
+                        value={rule.constructAbsent.join(', ')}
+                        onChange={(e) => updateMisconception(setMisconceptions, index, { constructAbsent: splitList(e.target.value) })}
+                      />
+                    </Field>
+                    <Field label="Fragment matches this regular expression">
+                      <input
+                        className="input font-mono text-xs"
+                        value={rule.fragmentRegex ?? ''}
+                        placeholder="range\\s*\\(\\s*len"
+                        onChange={(e) => updateMisconception(setMisconceptions, index, { fragmentRegex: e.target.value || null })}
+                      />
+                    </Field>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Field label="Only for verdict">
+                        <select
+                          className="input"
+                          value={rule.verdict ?? ''}
+                          onChange={(e) => updateMisconception(setMisconceptions, index, { verdict: e.target.value || null })}
+                        >
+                          <option value="">Any</option>
+                          {['WRONG_OUTPUT', 'WRONG_CONSTRUCT', 'SYNTAX_ERROR', 'RUNTIME_ERROR', 'TIMEOUT'].map((v) => (
+                            <option key={v} value={v}>{v}</option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Only for error type">
+                        <select
+                          className="input"
+                          value={rule.errorType ?? ''}
+                          onChange={(e) => updateMisconception(setMisconceptions, index, { errorType: e.target.value || null })}
+                        >
+                          <option value="">Any</option>
+                          {['syntax', 'runtime', 'timeout', 'conceptual', 'restricted', 'sql'].map((v) => (
+                            <option key={v} value={v}>{v}</option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
+                  </div>
+
+                  {typeof rule.timesMatched === 'number' && rule.timesMatched > 0 && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Matched {rule.timesMatched} time{rule.timesMatched === 1 ? '' : 's'}.
+                    </p>
+                  )}
+                </div>
+              ))}
+
+              <div className="flex gap-2">
+                <button
+                  className="btn-secondary"
+                  onClick={() => setMisconceptions((m) => [...m, {
+                    label: '', hint: '', constructUsed: [], constructAbsent: [],
+                    fragmentRegex: null, errorType: null, verdict: null,
+                  }])}
+                >
+                  + Add misconception
+                </button>
+                <button className="btn-primary" onClick={saveMisconceptions} disabled={!id || misconceptionsSaving}>
+                  {misconceptionsSaving ? 'Saving…' : 'Save misconceptions'}
+                </button>
+              </div>
             </div>
           )}
 
@@ -594,6 +932,14 @@ export function AdminQuestionBuilder({ theme }: { theme: 'dark' | 'light' }) {
  * id is generated here and pushed into the child, which keeps every call site
  * free of id bookkeeping; a child that already carries an id keeps it.
  */
+function updateMisconception(
+  setter: React.Dispatch<React.SetStateAction<MisconceptionRule[]>>,
+  index: number,
+  patch: Partial<MisconceptionRule>,
+): void {
+  setter((rules) => rules.map((rule, i) => (i === index ? { ...rule, ...patch } : rule)));
+}
+
 function Field({ label, children, className = '' }: { label: string; children: React.ReactNode; className?: string }) {
   const generatedId = useId();
   const child = isValidElement<{ id?: string }>(children) ? children : null;

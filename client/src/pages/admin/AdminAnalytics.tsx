@@ -11,14 +11,22 @@ interface QuestionStat {
 
 interface TopicStat { topic: string; language: string; label: string; attempts: number; accuracy: number }
 interface CommonError { errorType: string; verdict: string; message: string; count: number }
+interface ConstructStat {
+  construct: string; label: string; attempts: number; correct: number; accuracy: number; students: number;
+}
+interface MisconceptionStat {
+  id: number; label: string; hint: string; timesMatched: number; qid: string; title: string;
+}
 
 /** §24 — admin analytics. */
 export function AdminAnalytics() {
-  const [tab, setTab] = useState<'questions' | 'topics' | 'errors'>('questions');
+  const [tab, setTab] = useState<'questions' | 'topics' | 'constructs' | 'errors' | 'misconceptions'>('questions');
   const [order, setOrder] = useState<'hardest' | 'easiest' | 'most_attempted'>('hardest');
   const [questions, setQuestions] = useState<QuestionStat[] | null>(null);
   const [topics, setTopics] = useState<TopicStat[] | null>(null);
   const [errors, setErrors] = useState<CommonError[] | null>(null);
+  const [constructs, setConstructs] = useState<ConstructStat[] | null>(null);
+  const [misconceptions, setMisconceptions] = useState<MisconceptionStat[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -30,6 +38,10 @@ export function AdminAnalytics() {
     api.get<{ topics: TopicStat[] }>('/admin/analytics/topics').then((r) => setTopics(r.topics)).catch(() => {});
     api.get<{ overview: unknown; commonErrors: CommonError[] }>('/admin/analytics/overview')
       .then((r) => setErrors(r.commonErrors)).catch(() => {});
+    api.get<{ constructs: ConstructStat[] }>('/admin/analytics/constructs')
+      .then((r) => setConstructs(r.constructs)).catch(() => {});
+    api.get<{ misconceptions: MisconceptionStat[] }>('/admin/analytics/misconceptions')
+      .then((r) => setMisconceptions(r.misconceptions)).catch(() => {});
   }, []);
 
   return (
@@ -42,7 +54,9 @@ export function AdminAnalytics() {
         tabs={[
           { id: 'questions', label: 'Question stats' },
           { id: 'topics', label: 'Topic accuracy' },
+          { id: 'constructs', label: 'Construct accuracy' },
           { id: 'errors', label: 'Common errors' },
+          { id: 'misconceptions', label: 'Misconceptions' },
         ]}
       />
 
@@ -126,6 +140,68 @@ export function AdminAnalytics() {
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'constructs' && (
+        <div className="card p-4">
+          <h2 className="mb-1 font-medium">Weakest constructs across the cohort</h2>
+          <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+            Accuracy per construct — the unit the platform actually teaches. A construct low here
+            is one the material is not landing, regardless of which topic it sits under. Constructs
+            attempted fewer than three times are left out.
+          </p>
+          {!constructs ? <Spinner /> : constructs.length === 0 ? (
+            <p className="text-sm text-slate-500">No submissions recorded yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {constructs.map((c) => (
+                <div key={c.construct} className="flex flex-wrap items-center gap-3">
+                  <div className="min-w-[180px]">
+                    <div className="text-sm font-medium">{c.label}</div>
+                    <div className="font-mono text-[11px] text-slate-400">{c.construct}</div>
+                  </div>
+                  <div className="min-w-[160px] flex-1">
+                    <ProgressBar value={c.accuracy * 100} />
+                  </div>
+                  <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
+                    {Math.round(c.accuracy * 100)}% · {c.correct}/{c.attempts} · {c.students} student
+                    {c.students === 1 ? '' : 's'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'misconceptions' && (
+        <div className="card p-4">
+          <h2 className="mb-1 font-medium">Which misconceptions fire</h2>
+          <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+            Authored misconception hints, ranked by how often they matched a real answer. One that
+            never fires is either mis-described or not a mistake students actually make.
+          </p>
+          {!misconceptions ? <Spinner /> : misconceptions.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              None have matched yet. Add them on a question's Misconceptions tab.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {misconceptions.map((m) => (
+                <li key={m.id} className="rounded-lg border border-slate-200 p-3 dark:border-ink-800">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{m.label}</span>
+                    <span className="font-mono text-[11px] text-slate-400">{m.qid}</span>
+                    <span className="ml-auto font-mono text-xs text-slate-500 dark:text-slate-400">
+                      {m.timesMatched}×
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{m.hint}</p>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       )}

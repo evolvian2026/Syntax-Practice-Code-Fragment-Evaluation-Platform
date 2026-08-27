@@ -487,20 +487,50 @@ test.describe('presentation', () => {
 
     await expect(page.getByText('PROVIDED CODE')).toBeVisible();
     await expect(page.getByRole('button', { name: /Submit/ })).toBeVisible();
+    await expect.poll(() => measureOverflow(page), { timeout: 10_000 }).toBeLessThanOrEqual(1);
+  });
 
-    // No horizontal overflow once the layout has settled.
-    await page.waitForTimeout(1200);
-    const layout = await page.evaluate(() => {
-      const doc = document.documentElement;
-      const offenders: string[] = [];
-      for (const el of Array.from(document.querySelectorAll('*'))) {
-        const rect = el.getBoundingClientRect();
-        if (rect.right > doc.clientWidth + 1 && rect.width > 0 && rect.height > 0) {
-          offenders.push(`${el.tagName}.${String(el.className).slice(0, 60)} right=${Math.round(rect.right)}`);
-        }
-      }
-      return { overflow: doc.scrollWidth - doc.clientWidth, offenders: offenders.slice(0, 5) };
-    });
-    expect(layout.overflow, `overflowing elements: ${layout.offenders.join(' | ')}`).toBeLessThanOrEqual(1);
+  /**
+   * The header is the thing that overflows: its nav, stats cluster and account
+   * menu all compete for one row. It broke once between the md and lg
+   * breakpoints, so every width where the layout changes shape is checked —
+   * including just below each breakpoint, where the row is tightest.
+   */
+  test('no viewport width scrolls the page sideways', async ({ page }) => {
+    await signIn(page, ACCOUNTS.student);
+
+    // One load, then resize: the layout is pure CSS, and reloading the Monaco
+    // bundle ten times does not fit in a test timeout.
+    await page.goto('/practice');
+    await expect(page.locator('header')).toBeVisible();
+    await expect(page.locator('.card').first()).toBeVisible();
+
+    for (const width of [390, 640, 767, 768, 900, 1023, 1024, 1279, 1280, 1536]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect
+        .poll(() => measureOverflow(page), { timeout: 10_000, message: `page overflows at ${width}px` })
+        .toBeLessThanOrEqual(1);
+    }
   });
 });
+
+/**
+ * How far the page scrolls horizontally, and what is sticking out. Monaco's
+ * internal scroller is deliberately wider than its container, so only elements
+ * that actually push the document are reported.
+ */
+async function measureOverflow(page: import('@playwright/test').Page): Promise<number> {
+  const layout = await page.evaluate(() => {
+    const doc = document.documentElement;
+    const offenders: string[] = [];
+    for (const el of Array.from(document.querySelectorAll('*'))) {
+      const rect = el.getBoundingClientRect();
+      if (rect.right > doc.clientWidth + 1 && rect.width > 0 && rect.height > 0) {
+        offenders.push(`${el.tagName}.${String(el.className).slice(0, 50)} right=${Math.round(rect.right)}`);
+      }
+    }
+    return { overflow: doc.scrollWidth - doc.clientWidth, offenders: offenders.slice(0, 5) };
+  });
+  if (layout.overflow > 1) console.log(`  overflow ${layout.overflow}px from: ${layout.offenders.join(' | ')}`);
+  return layout.overflow;
+}

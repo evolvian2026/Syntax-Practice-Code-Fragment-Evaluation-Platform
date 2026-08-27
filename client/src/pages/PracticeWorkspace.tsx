@@ -83,6 +83,7 @@ export function PracticeWorkspace({ theme }: { theme: 'dark' | 'light' }) {
           detectedConstructs: [], missingConstructs: [], usedForbiddenConstructs: [], resultSet: null,
         },
         submissionId: null, attemptNumber: 0, award: null, explanation: null, solutions: [],
+        misconception: null, reviewDueAt: null,
       });
     } finally {
       setBusy(null);
@@ -271,7 +272,14 @@ export function PracticeWorkspace({ theme }: { theme: 'dark' | 'light' }) {
           )}
         </div>
 
-        {result && <ResultBanner result={result} award={attempt?.award ?? null} />}
+        {result && (
+          <ResultBanner
+            result={result}
+            award={attempt?.award ?? null}
+            misconception={attempt?.misconception ?? null}
+            reviewDueAt={attempt?.reviewDueAt ?? null}
+          />
+        )}
 
         <div className="card">
           <div className="px-3 pt-1">
@@ -316,7 +324,12 @@ export function PracticeWorkspace({ theme }: { theme: 'dark' | 'light' }) {
 
 // ------------------------------------------------------------- panels
 
-function ResultBanner({ result, award }: { result: EvaluationResult; award: AttemptResponse['award'] }) {
+function ResultBanner({ result, award, misconception, reviewDueAt }: {
+  result: EvaluationResult;
+  award: AttemptResponse['award'];
+  misconception?: AttemptResponse['misconception'];
+  reviewDueAt?: string | null;
+}) {
   const tone = result.isCorrect
     ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40'
     : result.verdict === 'WRONG_CONSTRUCT'
@@ -332,6 +345,22 @@ function ResultBanner({ result, award }: { result: EvaluationResult; award: Atte
           {result.score}/{result.maxScore} pts · {formatDuration(result.executionMs)}
         </span>
       </div>
+
+      {misconception && (
+        <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/30">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+            {misconception.label}
+          </p>
+          <p className="mt-1 text-sm text-amber-900 dark:text-amber-200">{misconception.hint}</p>
+        </div>
+      )}
+
+      {result.isCorrect && reviewDueAt && (
+        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+          Scheduled for review on {reviewDueAt.slice(0, 10)} — so you get the chance to write it
+          again before you forget it.
+        </p>
+      )}
 
       {result.stages.length > 0 && (
         <ol className="mt-3 flex flex-wrap gap-2">

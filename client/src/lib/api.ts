@@ -239,6 +239,10 @@ export interface AttemptResponse {
   award: Award | null;
   explanation: string | null;
   solutions: Array<{ code: string; note: string | null; isPrimary: boolean }>;
+  /** A hint aimed at this particular mistake, when the author described it. */
+  misconception: MisconceptionMatch | null;
+  /** When this question next comes back for review. */
+  reviewDueAt: string | null;
 }
 
 export interface Breakdown {
@@ -333,4 +337,109 @@ export interface AssessmentSummary {
   myAttemptStatus: string | null;
   myBestScore: number | null;
   attemptsUsed: number;
+}
+
+// ------------------------------------------------------- construct mastery
+
+export type MasteryLevel = 'unseen' | 'attempted' | 'developing' | 'proficient';
+
+export interface ConstructMastery {
+  construct: string;
+  label: string;
+  attempts: number;
+  correct: number;
+  required: number;
+  accuracy: number;
+  distinctQuestions: number;
+  lastUsedAt: string | null;
+  level: MasteryLevel;
+}
+
+export interface ConstructGap {
+  construct: string;
+  label: string;
+  attempts: number;
+  questionsAvailable: number;
+  nextQuestion: { id: number; qid: string; title: string; difficulty: string } | null;
+}
+
+// ----------------------------------------------------- spaced repetition
+
+export interface DueReview {
+  questionId: number;
+  qid: string;
+  title: string;
+  language: string;
+  topic: string;
+  difficulty: string;
+  dueAt: string;
+  intervalDays: number;
+  lapses: number;
+  overdueDays: number;
+}
+
+export interface ReviewSummary {
+  dueNow: number;
+  dueToday: number;
+  scheduled: number;
+  upcoming: Array<{ date: string; count: number }>;
+}
+
+// -------------------------------------------------------- question health
+
+export type HealthStatus = 'healthy' | 'failing' | 'unverifiable';
+
+export interface HealthRecord {
+  questionId: number;
+  qid: string;
+  title: string;
+  status: HealthStatus;
+  verdict: string | null;
+  message: string | null;
+  score: number | null;
+  maxScore: number | null;
+  durationMs: number;
+  checkedAt: string;
+}
+
+export interface SweepSummary {
+  checked: number;
+  healthy: number;
+  failing: number;
+  unverifiable: number;
+  durationMs: number;
+  failures: HealthRecord[];
+}
+
+// --------------------------------------------------------- misconceptions
+
+export interface MisconceptionRule {
+  id?: number;
+  label: string;
+  hint: string;
+  displayOrder?: number;
+  constructUsed: string[];
+  constructAbsent: string[];
+  fragmentRegex: string | null;
+  errorType: string | null;
+  verdict: string | null;
+  timesMatched?: number;
+}
+
+export interface MisconceptionMatch {
+  id: number;
+  label: string;
+  hint: string;
+}
+
+// ------------------------------------------------- derive from a program
+
+export interface DeriveResult {
+  starterCode: string;
+  solution: string;
+  requiredConstructs: string[];
+  detectedConstructs: string[];
+  expectedOutput: string | null;
+  executionError: string | null;
+  warnings: string[];
 }

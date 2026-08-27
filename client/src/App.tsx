@@ -4,6 +4,7 @@ import { Spinner } from './components/ui';
 import { AuthProvider, useAuth, useTheme } from './lib/auth';
 import { AdminAnalytics } from './pages/admin/AdminAnalytics';
 import { AdminAssessments } from './pages/admin/AdminAssessments';
+import { AdminHealth } from './pages/admin/AdminHealth';
 import { AdminHome } from './pages/admin/AdminHome';
 import { AdminImportExport } from './pages/admin/AdminImportExport';
 import { AdminLayout } from './pages/admin/AdminLayout';
@@ -15,6 +16,7 @@ import { Assessments } from './pages/Assessments';
 import { Dashboard } from './pages/Dashboard';
 import { LeaderboardPage } from './pages/Leaderboard';
 import { LearningPathPage } from './pages/LearningPath';
+import { MasteryPage } from './pages/Mastery';
 import { Login } from './pages/Login';
 import { PracticeBrowser } from './pages/PracticeBrowser';
 import { PracticeWorkspace } from './pages/PracticeWorkspace';
@@ -39,6 +41,7 @@ export function App() {
             <Route path="/practice/:qid" element={<PracticeWorkspace theme={theme.theme} />} />
             <Route path="/learning-path" element={<LearningPathPage />} />
             <Route path="/progress" element={<Dashboard />} />
+            <Route path="/mastery" element={<MasteryPage />} />
             <Route path="/submissions" element={<Submissions />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/assessments" element={<Assessments />} />
@@ -52,6 +55,7 @@ export function App() {
               <Route path="assessments" element={<AdminAssessments />} />
               <Route path="students" element={<AdminStudents />} />
               <Route path="analytics" element={<AdminAnalytics />} />
+              <Route path="health" element={<AdminHealth />} />
               <Route path="import-export" element={<AdminImportExport />} />
             </Route>
           </Route>

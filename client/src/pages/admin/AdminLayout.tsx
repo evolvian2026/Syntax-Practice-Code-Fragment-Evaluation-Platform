@@ -8,6 +8,7 @@ export function AdminLayout() {
     { to: '/admin/assessments', label: 'Assessments' },
     { to: '/admin/students', label: 'Students' },
     { to: '/admin/analytics', label: 'Analytics' },
+    { to: '/admin/health', label: 'Health' },
     { to: '/admin/import-export', label: 'Import / export' },
   ];
 
