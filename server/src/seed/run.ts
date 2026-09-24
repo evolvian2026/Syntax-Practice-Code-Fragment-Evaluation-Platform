@@ -1,4 +1,5 @@
 import { config } from '../config.js';
+import { enforceProductionGuard } from '../productionGuard.js';
 import { createUser, DuplicateEmailError } from '../auth/index.js';
 import { db, migrate } from '../db/index.js';
 import { upsertQuestion, type QuestionInput } from '../db/repositories/questions.js';
@@ -21,6 +22,7 @@ import { toQuestionInput, type SeedQuestion } from './questions/types.js';
  */
 
 async function main(): Promise<void> {
+  enforceProductionGuard({ seeding: true });
   const conn = db();
   migrate(conn);
 

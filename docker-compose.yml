@@ -1,0 +1,36 @@
+# Syntax Practice — single-host deployment.
+#
+#   cp .env.production.example .env.production   # then fill in the secrets
+#   docker compose up -d --build
+#
+# The app refuses to start without a real JWT_SECRET, and refuses to seed the
+# demo passwords printed in the README. See docs/DEPLOYMENT.md.
+
+services:
+  app:
+    build: .
+    image: syntax-practice:latest
+    restart: unless-stopped
+    env_file: .env.production
+    ports:
+      - "${HOST_PORT:-4000}:4000"
+    volumes:
+      # The SQLite database. Without a named volume every rebuild would start
+      # from an empty bank and lose every student's progress.
+      - sp-data:/data
+    # Student code runs in the subprocess sandbox inside this container, so the
+    # container itself is an outer boundary. It needs no extra privileges and
+    # must never be given the Docker socket.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: 2g
+    read_only: true
+    tmpfs:
+      # The sandbox writes each submission to a scratch directory.
+      - /app/.tmp:uid=10001,gid=10001,mode=0700,size=256m
+      - /tmp:size=64m
+
+volumes:
+  sp-data:

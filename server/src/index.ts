@@ -1,7 +1,9 @@
 import { createApp } from './app.js';
 import { config } from './config.js';
 import { db, migrate } from './db/index.js';
+import { enforceProductionGuard } from './productionGuard.js';
 
+enforceProductionGuard();
 migrate(db());
 
 const app = createApp();

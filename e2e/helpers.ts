@@ -1,10 +1,11 @@
 import { expect, type Browser, type BrowserContext, type Page, type Response } from '@playwright/test';
+import { E2E_ADMIN_PASSWORD, E2E_STUDENT_PASSWORD } from './credentials.mjs';
 
 /** Shared page objects for the end-to-end suite. */
 
 export const ACCOUNTS = {
-  student: { email: 'student@syntaxpractice.dev', password: 'student123' },
-  admin: { email: 'admin@syntaxpractice.dev', password: 'admin123' },
+  student: { email: 'student@syntaxpractice.dev', password: E2E_STUDENT_PASSWORD },
+  admin: { email: 'admin@syntaxpractice.dev', password: E2E_ADMIN_PASSWORD },
 };
 
 export async function signIn(page: Page, account: { email: string; password: string }): Promise<void> {

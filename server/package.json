@@ -6,12 +6,15 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/copy-assets.mjs",
     "start": "node dist/index.js",
     "migrate": "tsx src/db/migrate.ts",
     "seed": "tsx src/seed/run.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "migrate:prod": "node dist/db/migrate.js",
+    "seed:prod": "node dist/seed/run.js",
+    "test:build": "npm run build && node scripts/smoke-dist.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.72.0",

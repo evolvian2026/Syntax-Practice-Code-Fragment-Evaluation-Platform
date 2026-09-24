@@ -44,12 +44,25 @@ they unlock the Java/C/C++ questions and the platform reports a clear message if
 a toolchain is missing.
 
 ```bash
-npm run build     # production build (server + client)
-npm start         # serve API and the built UI from one process on :4000
-npm test          # 169 unit and integration tests
-npm run test:e2e  # browser tests driving the real application
-npm run test:all  # both
+npm run build       # production build (server + client)
+npm start           # serve API and the built UI from one process on :4000
+npm test            # 181 unit and integration tests
+npm run test:build  # boot the compiled build in production mode
+npm run test:e2e    # browser tests driving the real application
+npm run test:all    # all three
 ```
+
+### Deploying
+
+```bash
+cp .env.production.example .env.production   # set JWT_SECRET and the seed passwords
+docker compose up -d --build
+```
+
+Production refuses to start with the committed default secret, and refuses to
+seed the demo passwords above. The platform runs students' code, so read
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) first — it explains why the container
+runs unprivileged, why it must be a single instance, and how to back it up.
 
 ---
 
@@ -229,6 +242,7 @@ are most likely to change:
 - [`docs/API.md`](docs/API.md) — every endpoint
 - [`docs/QUESTION_AUTHORING.md`](docs/QUESTION_AUTHORING.md) — the question format in full
 - [`docs/TESTING.md`](docs/TESTING.md) — what the suites cover and how to run them
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — running it for real: security model, SQLite constraints, backups
 
 ## Repository layout
 

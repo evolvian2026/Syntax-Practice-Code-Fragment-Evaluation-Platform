@@ -1,0 +1,23 @@
+# Built inside the image; copying host builds in would mask a broken build.
+**/node_modules
+**/dist
+client/.vite
+
+# Local state and test output.
+data
+.tmp
+test-results
+playwright-report
+coverage
+*.log
+*.db
+*.db-*
+
+# Never bake secrets into an image layer.
+.env
+.env.*
+!.env.example
+
+.git
+.github
+.DS_Store

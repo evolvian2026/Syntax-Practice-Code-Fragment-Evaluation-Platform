@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { E2E_ADMIN_PASSWORD, E2E_JWT_SECRET, E2E_STUDENT_PASSWORD } from './credentials.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dataDir = path.join(root, '.tmp', 'e2e');
@@ -20,7 +21,9 @@ const env = {
   NODE_ENV: 'production',
   PORT: process.env.E2E_PORT ?? '4300',
   DATABASE_FILE: dbFile,
-  JWT_SECRET: 'e2e-secret',
+  JWT_SECRET: E2E_JWT_SECRET,
+  SEED_ADMIN_PASSWORD: E2E_ADMIN_PASSWORD,
+  SEED_STUDENT_PASSWORD: E2E_STUDENT_PASSWORD,
   AI_ENABLED: 'false',
 };
 
