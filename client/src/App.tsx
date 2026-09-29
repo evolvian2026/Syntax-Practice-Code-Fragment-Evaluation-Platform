@@ -67,9 +67,24 @@ export function App() {
 }
 
 function RequireAuth({ children }: { children: JSX.Element }) {
-  const { user, loading } = useAuth();
+  const { user, loading, unreachable, refresh } = useAuth();
   if (loading) {
     return <div className="grid min-h-screen place-items-center"><Spinner label="Starting" /></div>;
+  }
+  // Still signed in, just unable to confirm it. Sending the student to the
+  // login page here would look exactly like being logged out.
+  if (!user && unreachable) {
+    return (
+      <div className="grid min-h-screen place-items-center p-6">
+        <div className="card max-w-sm p-6 text-center">
+          <h1 className="text-lg font-semibold">Can't reach the server</h1>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+            You're still signed in. The server may be restarting — this usually clears in a few seconds.
+          </p>
+          <button className="btn-primary mt-4" onClick={() => void refresh()}>Try again</button>
+        </div>
+      </div>
+    );
   }
   return user ? children : <Navigate to="/login" replace />;
 }

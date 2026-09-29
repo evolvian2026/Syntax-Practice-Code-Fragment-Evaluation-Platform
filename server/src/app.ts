@@ -22,7 +22,7 @@ export function createApp() {
     contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false,
   }));
-  app.use(cors({ origin: config.corsOrigin === '*' ? true : config.corsOrigin.split(',') }));
+  app.use(cors({ origin: parseCorsOrigins(config.corsOrigin) }));
   app.use(express.json({ limit: '4mb' }));
   if (config.env !== 'test') app.use(morgan('dev'));
 
@@ -79,4 +79,20 @@ function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFun
     error: 'Something went wrong while handling your request.',
     detail: config.env === 'production' ? undefined : message,
   });
+}
+
+/**
+ * Reads CORS_ORIGIN: `*`, or a comma-separated list of origins.
+ *
+ * A browser's Origin header never has a trailing slash or surrounding spaces,
+ * so `https://a.app, https://b.app/` — easy to paste into a hosting dashboard —
+ * would otherwise match nothing, and the site would fail with a CORS error
+ * that names neither cause.
+ */
+export function parseCorsOrigins(raw: string): true | string[] {
+  if (raw.trim() === '*') return true;
+  return raw
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
 }

@@ -2,6 +2,20 @@
 
 const TOKEN_KEY = 'syntax-practice.token';
 
+/**
+ * Where the API lives. Empty means the same origin as the page, which is how
+ * the Docker image serves it. When the front end is hosted separately — on
+ * Vercel, say — set VITE_API_URL at build time to the API's origin, e.g.
+ * https://api.practice.example.com, and allow that page's origin in the
+ * server's CORS_ORIGIN.
+ */
+const API_ORIGIN = (import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '');
+
+/** The full URL of an API path such as `/practice/catalog`. */
+export function apiUrl(path: string): string {
+  return `${API_ORIGIN}/api${path}`;
+}
+
 export function getToken(): string | null {
   try {
     return localStorage.getItem(TOKEN_KEY);
@@ -39,7 +53,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   let response: Response;
   try {
-    response = await fetch(`/api${path}`, { ...init, headers });
+    response = await fetch(apiUrl(path), { ...init, headers });
   } catch {
     throw new ApiError(0, 'Could not reach the server. Check that the API is running.');
   }

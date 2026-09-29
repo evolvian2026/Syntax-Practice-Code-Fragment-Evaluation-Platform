@@ -1,10 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { api, getToken, setToken, type Profile, type User } from './api';
+import { ApiError, api, getToken, setToken, type Profile, type User } from './api';
 
 interface AuthState {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
+  /** Signed in, but the API could not be reached to confirm it. */
+  unreachable: boolean;
   login(email: string, password: string): Promise<void>;
   register(input: { email: string; password: string; fullName: string }): Promise<void>;
   logout(): void;
@@ -18,6 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [unreachable, setUnreachable] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!getToken()) {
@@ -26,14 +29,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
+    setUnreachable(false);
     try {
       const me = await api.get<{ user: User; profile: Profile | null }>('/auth/me');
       setUser(me.user);
       setProfile(me.profile);
-    } catch {
-      setToken(null);
-      setUser(null);
-      setProfile(null);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        // The server rejected the session — the one case that means it is
+        // gone. The API wrapper has already discarded the token.
+        setUser(null);
+        setProfile(null);
+      } else {
+        // Anything else — the API restarting during a deploy, a dropped
+        // connection, a request cut short by navigating away — says nothing
+        // about the session. Discarding the token here logged every user out
+        // whenever the API blinked, so it is kept and the page offers a retry.
+        setUnreachable(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -73,12 +86,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     profile,
     loading,
+    unreachable,
     login,
     register,
     logout,
     refresh,
     isAdmin: user?.role === 'admin' || user?.role === 'teacher',
-  }), [user, profile, loading, login, register, logout, refresh]);
+  }), [user, profile, loading, unreachable, login, register, logout, refresh]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

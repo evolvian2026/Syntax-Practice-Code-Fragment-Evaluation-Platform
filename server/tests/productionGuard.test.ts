@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { parseCorsOrigins } from '../src/app.js';
 import { checkProductionConfig } from '../src/productionGuard.js';
 
 const STRONG = 'a'.repeat(64);
@@ -90,5 +91,16 @@ describe('production guard', () => {
 
   it('does not warn about root for an unprivileged user', () => {
     expect(check({}, safeEnv, false, 1000).warnings.join(' ')).not.toMatch(/root/i);
+  });
+});
+
+describe('CORS_ORIGIN parsing', () => {
+  it('allows any origin for *', () => {
+    expect(parseCorsOrigins('*')).toBe(true);
+  });
+
+  it('tolerates the spaces and trailing slashes a pasted value tends to have', () => {
+    expect(parseCorsOrigins(' https://a.vercel.app/ , https://practice.example.com//,'))
+      .toEqual(['https://a.vercel.app', 'https://practice.example.com']);
   });
 });

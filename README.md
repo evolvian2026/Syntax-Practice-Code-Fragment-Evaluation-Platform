@@ -62,7 +62,8 @@ docker compose up -d --build
 Production refuses to start with the committed default secret, and refuses to
 seed the demo passwords above. The platform runs students' code, so read
 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) first — it explains why the container
-runs unprivileged, why it must be a single instance, and how to back it up.
+runs unprivileged, why it must be a single instance, how to back it up, and
+how to put the front end on Vercel (the API cannot run there).
 
 ---
 

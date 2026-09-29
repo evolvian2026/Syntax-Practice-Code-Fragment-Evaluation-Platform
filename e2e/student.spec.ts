@@ -9,6 +9,33 @@ import {
  */
 
 test.describe('authentication', () => {
+  // A session is only gone when the server says so. Before this was fixed, any
+  // failure to reach /auth/me — the API restarting during a deploy, a dropped
+  // connection — erased the stored token and signed every such student out.
+  test('an unreachable API does not sign the student out', async ({ page }) => {
+    await signIn(page, ACCOUNTS.student);
+    await page.route('**/api/auth/me', (route) => route.abort('connectionrefused'));
+    await page.reload();
+
+    await expect(page.getByText("Can't reach the server")).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem('syntax-practice.token'))).toBeTruthy();
+
+    await page.unroute('**/api/auth/me');
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.getByRole('link', { name: /Practice/ }).first()).toBeVisible();
+    await expect(page).not.toHaveURL(/\/login/);
+  });
+
+  test('a session the server rejects does sign the student out', async ({ page }) => {
+    await signIn(page, ACCOUNTS.student);
+    await page.route('**/api/auth/me', (route) =>
+      route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"Session expired."}' }));
+    await page.reload();
+
+    await expect(page).toHaveURL(/\/login/);
+    expect(await page.evaluate(() => localStorage.getItem('syntax-practice.token'))).toBeNull();
+  });
+
   test('rejects bad credentials and accepts good ones', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('Email').fill(ACCOUNTS.student.email);

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { ErrorNote, Spinner } from '../../components/ui';
-import { api, getToken } from '../../lib/api';
+import { apiUrl, api, getToken } from '../../lib/api';
 
 interface ImportResult {
   dryRun: boolean;
@@ -40,7 +40,7 @@ export function AdminImportExport() {
     setBusy(true);
     try {
       // The export route sets a download filename; fetch it directly to keep the auth header.
-      const response = await fetch('/api/admin/questions-export', {
+      const response = await fetch(apiUrl('/admin/questions-export'), {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       const blob = await response.blob();
