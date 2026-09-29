@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AccuracyBar, ErrorNote, Spinner, VerdictBadge, formatDate } from '../../components/ui';
+import { AccuracyBar, ErrorNote, Spinner, VerdictBadge } from '../../components/ui';
 import { api, type DashboardSummary, type SubmissionListItem } from '../../lib/api';
 
 interface StudentRow {

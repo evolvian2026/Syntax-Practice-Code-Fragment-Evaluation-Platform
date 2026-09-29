@@ -114,69 +114,6 @@ function cellToString(value: unknown): string {
   return String(value).trim();
 }
 
-function rowKey(row: unknown[]): string {
-  return row.map(cellToString).join('');
-}
-
-/**
- * Compares two result sets.
- *
- * Column *names* are ignored (aliases differ harmlessly), column *order* and
- * values matter. Row order only matters when the question asks for it.
- */
-export function compareResultSets(
-  actual: ResultSet,
-  expected: ResultSet,
-  opts: { ordered?: boolean } = {},
-): { passed: boolean; message?: string } {
-  if (actual.rows.length !== expected.rows.length) {
-    return {
-      passed: false,
-      message: `Expected ${expected.rows.length} row${expected.rows.length === 1 ? '' : 's'}, your query returned ${actual.rows.length}.`,
-    };
-  }
-  const expectedWidth = expected.columns.length || (expected.rows[0]?.length ?? 0);
-  const actualWidth = actual.columns.length || (actual.rows[0]?.length ?? 0);
-  if (expectedWidth !== actualWidth) {
-    return {
-      passed: false,
-      message: `Expected ${expectedWidth} column${expectedWidth === 1 ? '' : 's'}, your query returned ${actualWidth}.`,
-    };
-  }
-
-  if (opts.ordered) {
-    for (let i = 0; i < expected.rows.length; i += 1) {
-      if (rowKey(actual.rows[i]) !== rowKey(expected.rows[i])) {
-        const exp = truncate(expected.rows[i].map(cellToString).join(' | '));
-        const got = truncate(actual.rows[i].map(cellToString).join(' | '));
-        return { passed: false, message: `Row ${i + 1} differs: expected \`${exp}\`, got \`${got}\`.` };
-      }
-    }
-    return { passed: true };
-  }
-
-  const counts = new Map<string, number>();
-  for (const row of expected.rows) {
-    const key = rowKey(row);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  for (const row of actual.rows) {
-    const key = rowKey(row);
-    const left = counts.get(key);
-    if (!left) {
-      return {
-        passed: false,
-        message: `Unexpected row in your result: \`${truncate(row.map(cellToString).join(' | '))}\`.`,
-      };
-    }
-    counts.set(key, left - 1);
-  }
-  const missing = [...counts.entries()].find(([, n]) => n > 0);
-  if (missing) {
-    return { passed: false, message: `Your result is missing the row \`${truncate(missing[0].split('').join(' | '))}\`.` };
-  }
-  return { passed: true };
-}
 
 export function resultSetToText(rs: ResultSet): string {
   const header = rs.columns.join(' | ');

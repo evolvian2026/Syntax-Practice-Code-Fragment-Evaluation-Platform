@@ -35,10 +35,6 @@ export function VerdictBadge({ verdict }: { verdict: string }) {
   );
 }
 
-export function verdictLabel(verdict: string): string {
-  return VERDICT_STYLES[verdict]?.label ?? verdict;
-}
-
 export function ProgressBar({
   value, max = 100, className = '', tone = 'brand',
 }: { value: number; max?: number; className?: string; tone?: 'brand' | 'emerald' | 'amber' | 'rose' }) {

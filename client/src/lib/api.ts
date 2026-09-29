@@ -5,7 +5,7 @@ const TOKEN_KEY = 'syntax-practice.token';
 /**
  * Where the API lives. Empty means the same origin as the page, which is how
  * the Docker image serves it. When the front end is hosted separately — on
- * Vercel, say — set VITE_API_URL at build time to the API's origin, e.g.
+ * S3 behind CloudFront, say — set VITE_API_URL at build time to the API's origin, e.g.
  * https://api.practice.example.com, and allow that page's origin in the
  * server's CORS_ORIGIN.
  */

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { FragmentEditor } from '../components/FragmentEditor';
-import { DifficultyBadge, ErrorNote, Spinner, VerdictBadge, formatDuration } from '../components/ui';
+import { DifficultyBadge, ErrorNote, Spinner, VerdictBadge } from '../components/ui';
 import { api, type StudentQuestion } from '../lib/api';
 
 interface Attempt {

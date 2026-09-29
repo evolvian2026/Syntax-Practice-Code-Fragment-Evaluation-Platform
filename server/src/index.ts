@@ -1,6 +1,6 @@
 import { createApp } from './app.js';
 import { config } from './config.js';
-import { db, migrate } from './db/index.js';
+import { closeDatabase, db, migrate } from './db/index.js';
 import { enforceProductionGuard } from './productionGuard.js';
 
 enforceProductionGuard();
@@ -16,6 +16,12 @@ const server = app.listen(config.port, () => {
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
-    server.close(() => process.exit(0));
+    // Closing SQLite folds its write-ahead log back into the database file,
+    // so the file on the volume is complete on its own when a container is
+    // replaced — and a plain copy of it is a usable backup.
+    server.close(() => {
+      closeDatabase();
+      process.exit(0);
+    });
   });
 }

@@ -151,15 +151,6 @@ export function listHealth(opts: { status?: HealthStatus; limit?: number } = {})
   return rows.map(toRecord);
 }
 
-export function healthFor(questionId: number): HealthRecord | null {
-  const row = db().prepare(`
-    SELECT h.*, q.qid, q.title FROM question_health h
-    JOIN questions q ON q.id = h.question_id
-    WHERE h.question_id = ?
-  `).get(questionId) as any;
-  return row ? toRecord(row) : null;
-}
-
 /** Counts by status, including questions never checked. */
 export function healthSummary(): { healthy: number; failing: number; unverifiable: number; unchecked: number } {
   const row = db().prepare(`

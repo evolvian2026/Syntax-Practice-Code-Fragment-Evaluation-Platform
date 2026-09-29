@@ -24,10 +24,6 @@ export function listLanguages(onlyEnabled = true): LanguageRow[] {
   return db().prepare(`SELECT * FROM languages ${clause} ORDER BY display_order, name`).all() as LanguageRow[];
 }
 
-export function findLanguage(slug: string): LanguageRow | null {
-  return (db().prepare('SELECT * FROM languages WHERE slug = ?').get(slug) as LanguageRow) ?? null;
-}
-
 export function listTopics(languageSlug?: string): TopicRow[] {
   if (!languageSlug) {
     return db().prepare('SELECT * FROM topics ORDER BY display_order, name').all() as TopicRow[];

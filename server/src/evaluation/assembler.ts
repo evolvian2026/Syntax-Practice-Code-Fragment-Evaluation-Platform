@@ -55,10 +55,6 @@ export function indentFragment(fragment: string, indent: string): string {
     .join('\n');
 }
 
-export function stripTrailingNewlines(value: string): string {
-  return value.replace(/[\r\n]+$/, '');
-}
-
 /**
  * Builds the executable program for a question + fragment (+ optional test setup).
  *

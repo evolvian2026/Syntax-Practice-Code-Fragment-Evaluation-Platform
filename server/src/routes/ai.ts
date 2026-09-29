@@ -7,7 +7,7 @@ import { findSubmission } from '../db/repositories/submissions.js';
 import {
   aiAvailable, explainError, generateQuestion, progressiveHint, recommendPractice,
 } from '../services/ai.js';
-import { asyncHandler, NotFoundError, parseIntParam, validate } from './helpers.js';
+import { asyncHandler, NotFoundError, validate } from './helpers.js';
 
 export const aiRouter = Router();
 aiRouter.use(authenticate);

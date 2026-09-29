@@ -4,7 +4,6 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(here, '..', '..');           // repo root
-export const SERVER_ROOT = path.resolve(here, '..');           // /server
 
 function int(name: string, fallback: number): number {
   const raw = process.env[name];

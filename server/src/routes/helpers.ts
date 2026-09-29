@@ -40,11 +40,6 @@ export function parseIntParam(value: unknown, fallback: number): number {
   return Number.isFinite(n) ? Math.trunc(n) : fallback;
 }
 
-export function parseBool(value: unknown): boolean | undefined {
-  if (value === undefined || value === '') return undefined;
-  return ['1', 'true', 'yes'].includes(String(value).toLowerCase());
-}
-
 /** Accepts either a numeric id or a QID string in a route param. */
 export function idOrQid(param: string): number | string {
   return /^\d+$/.test(param) ? Number(param) : param;

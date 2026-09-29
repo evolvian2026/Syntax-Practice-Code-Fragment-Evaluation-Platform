@@ -59,42 +59,47 @@ docker build --build-arg TOOLCHAINS=false -t syntax-practice .
 Questions in the missing languages then report that the toolchain is
 unavailable; nothing else is affected.
 
-## Front end on Vercel
+## Not serverless: why the API needs a real server
 
-Vercel can host the **front end** — the built React app — and it is a good fit
-for it. It cannot host the **API**, for two reasons that are structural, not
-configuration:
+The API cannot run on a serverless platform — AWS Lambda, Vercel functions and
+the like — for two reasons that are structural, not configuration:
 
 - **No persistent disk.** Serverless functions get a fresh, throwaway
   filesystem. The SQLite database, and with it every account and every
   student's progress, would be lost between requests.
 - **No compilers or interpreters.** The sandbox grades answers by running
-  `python3`, `javac`, `gcc` and `g++`. Vercel's runtime has none of them and
-  cannot run this project's container image.
+  `python3`, `javac`, `gcc` and `g++` as child processes, under limits a
+  function runtime does not allow.
 
-So the split is: the API in the container above, on any host with a disk; the
-front end on Vercel, pointed at it.
+On AWS that means the container on **EC2** with `docker compose` (as above), its
+`/data` volume on the instance's EBS disk — or **ECS** with an EBS volume at
+`/data`, one task, never more. Two traps:
 
-1. **Deploy the API** with `docker compose` (above), or on Render, Railway or
-   Fly from the Dockerfile with a persistent volume mounted at `/data`. Note
-   its public URL, e.g. `https://api.practice.example.com`.
-2. **Import the repository into Vercel** (Add New → Project → pick the repo).
-   `vercel.json` already tells it to install and build only the client, and to
-   serve every route from the single-page app. Leave the root directory as the
-   repository root.
-3. **Set one environment variable** in the Vercel project:
-   `VITE_API_URL=https://api.practice.example.com`. It is read at build time,
-   so redeploy after changing it.
-4. **Allow the Vercel origin on the API**:
-   `CORS_ORIGIN=https://your-project.vercel.app` (comma-separate several, e.g.
-   a custom domain as well). Without it the browser refuses every request and
-   sign-in fails with "Could not reach the server". Vercel's per-branch
-   preview URLs are separate origins; add any you want to work.
+- **Not EFS.** It is a network filesystem, and SQLite's documentation warns
+  that file locking over one is unreliable enough to corrupt the database.
+- **Not Lightsail container services**, which have no persistent storage. A
+  plain Lightsail *instance* running `docker compose` is fine.
 
-This split was exercised end to end: Vercel's install and build commands run in
-a clean copy of the repository, the output served with Vercel's rewrite rule,
-the API on a different origin — signing in and submitting an answer through the
-real UI, with every API call going cross-origin and an unlisted origin refused.
+### Serving the front end separately (optional)
+
+The API serves the built front end itself, so one container is a complete
+deployment. To put the front end on a CDN instead — S3 with CloudFront, for
+instance — build the client with the API's address baked in and allow the
+front end's origin on the API:
+
+```bash
+VITE_API_URL=https://api.practice.example.com npm run build --workspace client
+# upload client/dist; route every path that is not a file to /index.html
+```
+
+```bash
+CORS_ORIGIN=https://practice.example.com    # on the API; comma-separate several
+```
+
+Without that `CORS_ORIGIN` entry the browser refuses every request and sign-in
+fails with "Could not reach the server". This split has been exercised end to
+end: the built client served from one origin, the API on another, a real
+browser signing in and submitting an answer, and an unlisted origin refused.
 
 ## Constraints that come from SQLite
 

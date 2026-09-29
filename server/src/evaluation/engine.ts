@@ -92,7 +92,7 @@ export async function evaluate(request: EvaluationRequest): Promise<EvaluationRe
   base.usedForbiddenConstructs = constructCheck.forbidden;
 
   // -------------------------------------------------- 5. grade the body
-  const graded = await gradeByType(request, adapter, analysis, stages);
+  const graded = await gradeByType(request, adapter, stages);
   Object.assign(base, graded.patch);
   base.stages = stages;
 
@@ -296,7 +296,6 @@ interface GradeOutcome {
 async function gradeByType(
   request: EvaluationRequest,
   adapter: ReturnType<typeof getAdapter>,
-  analysis: AnalysisResult,
   stages: StageResult[],
 ): Promise<GradeOutcome> {
   const { question } = request;
@@ -309,7 +308,7 @@ async function gradeByType(
     case 'TEXT':
       return gradeText(request, stages);
     case 'STATIC':
-      return gradeStatic(request, adapter, analysis, stages);
+      return gradeStatic(request, adapter, stages);
     case 'VALUE':
     case 'OUTPUT':
     case 'SQL_RESULT':
@@ -415,7 +414,6 @@ function gradeText(request: EvaluationRequest, stages: StageResult[]): GradeOutc
 async function gradeStatic(
   request: EvaluationRequest,
   adapter: ReturnType<typeof getAdapter>,
-  analysis: AnalysisResult,
   stages: StageResult[],
 ): Promise<GradeOutcome> {
   const { question, fragment } = request;

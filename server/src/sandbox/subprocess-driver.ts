@@ -195,5 +195,4 @@ export function mapStatus(outcome: SpawnOutcome, ok: boolean): SandboxStatus {
   return ok ? 'ok' : 'runtime_error';
 }
 
-export const subprocessDriverMeta = { name: 'subprocess' };
 export type { SandboxDriver, SandboxJob, SandboxResult };

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate } from '../auth/index.js';
 import { db } from '../db/index.js';
-import { attempt, loadQuestion, redactForStudent, toStudentView } from '../services/practice.js';
+import { attempt, loadQuestion, toStudentView } from '../services/practice.js';
 import { asyncHandler, NotFoundError, parseIntParam, validate } from './helpers.js';
 
 export const assessmentRouter = Router();

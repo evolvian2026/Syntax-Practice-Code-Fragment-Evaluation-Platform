@@ -118,5 +118,3 @@ export function runGuards(fragment: string, question: EvaluableQuestion): GuardO
     },
   };
 }
-
-export const platformPatternIds = DANGEROUS_PATTERNS.map((p) => p.id);
