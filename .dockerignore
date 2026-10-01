@@ -13,10 +13,12 @@ coverage
 *.db
 *.db-*
 
-# Never bake secrets into an image layer.
-.env
-.env.*
+# Never bake secrets into an image layer. Unlike .gitignore, these patterns are
+# relative to the build context root, so server/.env needs its own **/ form.
+**/.env
+**/.env.*
 !.env.example
+!.env.production.example
 
 .git
 .github

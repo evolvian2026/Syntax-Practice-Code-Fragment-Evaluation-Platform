@@ -139,6 +139,13 @@ export async function runProcess(opts: SpawnOptions): Promise<SpawnOutcome> {
     });
     child.on('close', (code, signal) => finish(code, signal));
 
+    // A child may exit before reading its input — a program that never reads
+    // stdin, or one that crashes at once. Writing to it then fails with EPIPE,
+    // and an error on a stream with no listener is thrown at the top level,
+    // which killed the whole server along with every submission in flight.
+    // The child's fate is reported by 'close' above, so the failed write says
+    // nothing new and is ignored.
+    child.stdin?.on('error', () => {});
     if (opts.stdin !== undefined) {
       child.stdin?.write(opts.stdin);
     }

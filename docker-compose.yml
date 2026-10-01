@@ -1,17 +1,26 @@
 # Syntax Practice — single-host deployment.
 #
-#   cp .env.production.example .env.production   # then fill in the secrets
+#   cp .env.production.example .env      # then fill in the three secrets
 #   docker compose up -d --build
+#   docker compose logs -f app           # first start seeds 142 questions
 #
-# The app refuses to start without a real JWT_SECRET, and refuses to seed the
-# demo passwords printed in the README. See docs/DEPLOYMENT.md.
+# Compose reads .env from this directory and refuses to start — before it
+# builds anything — if a required secret is missing. See docs/DEPLOYMENT.md.
 
 services:
   app:
     build: .
     image: syntax-practice:latest
     restart: unless-stopped
-    env_file: .env.production
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?is not set. Copy .env.production.example to .env and set it (openssl rand -hex 32)}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?is not set. Set it in .env — it becomes the admin password}
+      SEED_STUDENT_PASSWORD: ${SEED_STUDENT_PASSWORD:?is not set. Set it in .env — it becomes the demo student password}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      SANDBOX_MAX_CONCURRENT: ${SANDBOX_MAX_CONCURRENT:-4}
+      AI_ENABLED: ${AI_ENABLED:-true}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:
       - "${HOST_PORT:-4000}:4000"
     volumes:
@@ -28,8 +37,11 @@ services:
     mem_limit: 2g
     read_only: true
     tmpfs:
-      # The sandbox writes each submission to a scratch directory.
-      - /app/.tmp:uid=10001,gid=10001,mode=0700,size=256m
+      # The sandbox's scratch space. `exec` is required: Docker mounts tmpfs
+      # noexec by default, and the C and C++ graders compile a binary here and
+      # run it — without it every C/C++ submission fails with "Permission
+      # denied", and so does seeding their reference solutions.
+      - /app/.tmp:uid=10001,gid=10001,mode=0700,size=256m,exec
       - /tmp:size=64m
 
 volumes:

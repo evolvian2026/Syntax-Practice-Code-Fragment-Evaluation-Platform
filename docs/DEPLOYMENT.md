@@ -20,9 +20,16 @@ as root, and about the sandbox layout (below).
 ## The recommended layout: one container on one host
 
 ```bash
-cp .env.production.example .env.production   # fill in JWT_SECRET and the seed passwords
+cp .env.production.example .env     # then fill in JWT_SECRET and the two seed passwords
 docker compose up -d --build
-docker compose logs -f app                   # first boot seeds 142 questions (~20 s)
+docker compose logs -f app          # first start seeds 142 questions (~20 s; minutes on a small VM)
+```
+
+Compose reads `.env` from the repository root. If a required secret is
+missing it stops immediately — before building anything — and names it:
+
+```
+required variable JWT_SECRET is missing a value: is not set. Copy .env.production.example to .env …
 ```
 
 Then put HTTPS in front of port 4000 (Caddy, nginx, or your platform's load
@@ -40,12 +47,17 @@ What the image and `docker-compose.yml` do, and why:
   switch to `SANDBOX_DRIVER=docker` inside a container: it needs the Docker
   socket mounted into a public web app, which gives that app root on the host.
 - **`cap_drop: ALL`, `no-new-privileges`, a read-only root filesystem,** with
-  writable space only in the `/data` volume and two tmpfs scratch mounts.
+  writable space only in the `/data` volume and two tmpfs scratch mounts. The
+  sandbox's mount carries `exec`: Docker mounts tmpfs `noexec` by default, and
+  the C and C++ graders compile a binary there and run it.
 - **Only the server's production dependencies ship.** The client is compiled
   into static files; React, Monaco, Vite, Vitest and TypeScript are not in the
   image, and neither are their dev-server advisories.
-- **Seeds only an empty database.** Restarts never re-seed, so an admin's
-  edits to questions survive a redeploy.
+- **Seeds until a seed has finished, then never again.** The seed records
+  when it reached the end, so restarts leave an admin's edits alone — and a
+  seed interrupted part-way resumes on the next start instead of leaving a
+  partial bank. If some questions fail (a missing toolchain, say), the rest are
+  served and the log says which failed and how to add them later.
 
 ### Java, C and C++
 
@@ -101,6 +113,39 @@ fails with "Could not reach the server". This split has been exercised end to
 end: the built client served from one origin, the API on another, a real
 browser signing in and submitting an answer, and an unlisted origin refused.
 
+## The database
+
+Everything — accounts, questions, submissions, progress — lives in one SQLite
+file. There is no database server to run or connect to.
+
+| Where | File |
+| --- | --- |
+| Local development | `data/syntax-practice.db` in the repository |
+| Docker | `/data/syntax-practice.db` inside the container, on the named volume `sp-data` |
+
+`DATABASE_FILE` overrides either. `npm run setup` (or a container's first
+start) creates the schema from `server/src/db/schema.sql` and seeds it.
+
+**Looking inside.** A read-only inspector that works anywhere, including in the
+container, where there is no `sqlite3` client:
+
+```bash
+npm run db                                    # every table and its row count
+npm run db -- questions 3                     # one table: its columns and first rows
+docker compose exec app node server/scripts/db.mjs          # the same, in the container
+docker compose exec app node server/scripts/db.mjs users    # password hashes are masked
+```
+
+For browsing and ad-hoc queries, open the file in a desktop tool such as
+DB Browser for SQLite, or the `sqlite3` command line. From Docker, copy it out
+first with `docker compose cp app:/data/syntax-practice.db .` — or better, take
+a consistent backup (below) and open that.
+
+**Persistence.** The `sp-data` volume outlives the container: `docker compose
+down`, rebuilds and restarts all keep it. Only `docker compose down -v`, or
+`docker volume rm`, deletes it — and with it every account and submission.
+`docs/DATABASE.md` documents every table.
+
 ## Constraints that come from SQLite
 
 - **Run exactly one instance.** SQLite lives on one disk. Two replicas would
@@ -120,6 +165,21 @@ browser signing in and submitting an answer, and an unlisted origin refused.
   ```
 
   It writes into the volume; copy the file somewhere off the host.
+
+## When `docker compose up` fails
+
+| Symptom | Cause and fix |
+| --- | --- |
+| `required variable JWT_SECRET is missing a value` | No `.env` beside `docker-compose.yml`, or a secret left empty. `cp .env.production.example .env` and fill it in. |
+| `Refusing to start: this configuration is unsafe` in the logs | A secret is set but unsafe — the published default, or shorter than 32 characters. The log line says which. |
+| Logs list `FAILED` questions with `./program: Permission denied` | The sandbox's tmpfs is mounted `noexec`. The shipped `docker-compose.yml` adds `exec`; if you wrote your own, add it. Then run `docker compose exec app node server/dist/seed/run.js` to add the questions that failed. |
+| `FAILED` questions with a missing `javac`, `gcc` or `g++` | The image was built with `TOOLCHAINS=false`. Expected — those languages are left out. |
+| `Bind for 0.0.0.0:4000 failed: port is already allocated` | Something else uses port 4000. Set `HOST_PORT=8080` in `.env`. |
+| `Unsupported config option` or `services.app.x must be a ...` | The old Python `docker-compose` (v1). Use the `docker compose` plugin (Compose v2). |
+| Container restarts again and again | `docker compose logs app` shows the reason; it is almost always one of the rows above. |
+
+Read the logs with `docker compose logs -f app`; `docker compose up` without
+`-d` shows them as it starts.
 
 ## Without Docker
 
@@ -168,6 +228,16 @@ end: the pruned dependency set, the entrypoint, the unprivileged user, a
 read-only application tree, first boot seeding, a restart that kept every
 submission and did not re-seed, and a health sweep in which all 142 questions
 passed across every language.
+
+That reproduction missed one thing, and it is the thing that broke: it did not
+model Docker mounting tmpfs `noexec` by default. The first real
+`docker compose up` therefore failed every C and C++ reference solution with
+"Permission denied", and the entrypoint — which then treated any seeding
+failure as fatal — took the container down with it. Both are fixed, and every
+start-up path of the entrypoint has since been run against a real `noexec`
+mount: a fresh volume, a restart, the half-seeded volume that failure left
+behind (it now resumes to all 142), an image without compilers, and empty
+seed passwords (it refuses, saying why).
 
 The image itself was **not** built in the environment this was prepared in:
 its network policy blocks the Debian package mirror, so no `apt-get` step can

@@ -1,3 +1,4 @@
+import { runProcess } from '../src/sandbox/subprocess-driver.js';
 import { describe, expect, it } from 'vitest';
 import { analyzePython, execute } from '../src/sandbox/index.js';
 import { analyzeJavaScript } from '../src/evaluation/languages/javascript.js';
@@ -251,4 +252,21 @@ describe('compiled languages', () => {
     expect(result.status).toBe('ok');
     expect(result.stdout.trim()).toBe('ok');
   }, 60000);
+});
+
+describe('process plumbing', () => {
+  // A child that exits before reading its input made the write to its stdin
+  // fail with EPIPE, and with no listener that error was thrown at the top
+  // level — killing the server. Large input makes the race certain: a pipe
+  // buffers 64 KB, so the rest is still being written when the child is gone.
+  it('survives a child that exits without reading its input', async () => {
+    const outcome = await runProcess({
+      cmd: 'sh',
+      args: ['-c', 'exit 0'],
+      cwd: process.cwd(),
+      timeoutMs: 5000,
+      stdin: 'x'.repeat(4 * 1024 * 1024),
+    });
+    expect(outcome.exitCode).toBe(0);
+  });
 });

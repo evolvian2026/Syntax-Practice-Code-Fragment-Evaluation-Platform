@@ -19,7 +19,8 @@
     "setup": "npm install && npm run migrate && npm run seed",
     "test:e2e": "playwright test",
     "test:all": "npm run test && npm run test:build && npm run test:e2e",
-    "test:build": "npm --workspace server run test:build"
+    "test:build": "npm --workspace server run test:build",
+    "db": "node server/scripts/db.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

@@ -1,9 +1,16 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(here, '..', '..');           // repo root
+
+// Local settings live in server/.env. It is loaded by absolute path: dotenv's
+// default reads .env from the current directory, which depends on how the
+// process was started, so the file was silently ignored from some commands.
+// Real environment variables still win, which is what a container relies on.
+// (The repository-root .env is Docker Compose's, holding deployment secrets.)
+dotenv.config({ path: path.resolve(here, '..', '.env'), quiet: true });
 
 function int(name: string, fallback: number): number {
   const raw = process.env[name];

@@ -54,6 +54,14 @@ async function main(): Promise<void> {
     process.exitCode = 1;
   }
 
+  // Marks a seed that ran to the end. The container entrypoint seeds until
+  // this exists, so a seed interrupted part-way is resumed on the next start
+  // rather than mistaken for a finished one because some questions exist.
+  conn.prepare(`
+    INSERT INTO schema_meta (key, value) VALUES ('seeded_at', datetime('now'))
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run();
+
   const counts = conn.prepare(`
     SELECT l.name AS language, COUNT(*) AS n
     FROM questions q JOIN languages l ON l.id = q.language_id

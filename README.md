@@ -50,12 +50,13 @@ npm test            # 181 unit and integration tests
 npm run test:build  # boot the compiled build in production mode
 npm run test:e2e    # browser tests driving the real application
 npm run test:all    # all three
+npm run db          # list the database's tables; `npm run db -- <table>` to look inside one
 ```
 
 ### Deploying
 
 ```bash
-cp .env.production.example .env.production   # set JWT_SECRET and the seed passwords
+cp .env.production.example .env   # set JWT_SECRET and the two seed passwords
 docker compose up -d --build
 ```
 
@@ -222,7 +223,7 @@ The engine, API, builder and UI need no changes.
 
 ## Configuration
 
-Copy `.env.example` to `.env`. Everything has a working default; the settings you
+Copy `.env.example` to `server/.env`. Everything has a working default; the settings you
 are most likely to change:
 
 | Variable            | Default                  | Purpose                                  |

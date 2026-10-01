@@ -96,7 +96,10 @@ EXPOSE 4000
 
 # node rather than curl: the slim image has no curl, and adding it only for this
 # would widen the image for no other reason.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
+# The start period covers first-boot seeding, which runs every reference solution
+# and can take minutes on a small instance; give up sooner and an orchestrator
+# would kill the container mid-seed.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=300s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||4000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 CMD ["node", "server/scripts/docker-entrypoint.mjs"]
